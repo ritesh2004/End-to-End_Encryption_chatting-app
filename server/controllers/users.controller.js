@@ -10,21 +10,33 @@ const createUser = (req,res) => {
         if (!name || !email || !provider || !photoURL) {
             return res.status(400).json({message: "Please fill in all fields"});
         }
-        const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
         db.query('USE chatdb');
-        db.query('INSERT INTO users(fullname,email,provider,createdAt,photoURL) VALUES(?,?,?,?,?)', [name, email, provider,timestamp,photoURL], (error, results) => {
+        db.query('SELECT * FROM users WHERE email = ?', [email], (error, results) => {
             if (error) {
                 console.log(error);
                 return res.status(500).json({message: error.message});
-            } else {
-                // console.log(results);
-                db.query('SELECT * FROM users WHERE email = ?', [email], (error, results) => {
+            }
+            else if (results.length > 0) {
+                login(req,res);
+            }
+            else {
+                const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
+                db.query('USE chatdb');
+                db.query('INSERT INTO users(fullname,email,provider,createdAt,photoURL) VALUES(?,?,?,?,?)', [name, email, provider,timestamp,photoURL], (error, results) => {
                     if (error) {
                         console.log(error);
                         return res.status(500).json({message: error.message});
                     } else {
-                        resultObj = Object.assign({}, results[0]);
-                        return res.status(200).json({message: "User created successfully", user : resultObj});
+                        // console.log(results);
+                        db.query('SELECT * FROM users WHERE email = ?', [email], (error, results) => {
+                            if (error) {
+                                console.log(error);
+                                return res.status(500).json({message: error.message});
+                            } else {
+                                resultObj = Object.assign({}, results[0]);
+                                return res.status(200).json({message: "User created successfully", user : resultObj});
+                            }
+                        });
                     }
                 });
             }
@@ -36,6 +48,7 @@ const createUser = (req,res) => {
 
 const login = (req,res) => {
     try {
+        console.log(req.body);
         const {email,provider} = req.body;
         let resultObj;
         if (!email || !provider) {
@@ -85,8 +98,32 @@ const verifyMe = (req,res) => {
     }
 }
 
+const getAllUsers = (req,res) => {
+    try {
+        db.query('USE chatdb');
+        db.query('SELECT * FROM users', (error, results) => {
+            if (error) {
+                console.log(error);
+                return res.status(500).json({message: error.message});
+            } else {
+                let users = [];
+                // const resultObj = Object.assign({}, results[0]);
+                // console.log(results);
+                // console.log(results.length);
+                for (let i=0; i<results.length; i++) {
+                    users.push(Object.assign({}, results[i]));
+                }
+                return res.status(200).json({message: "Users retrieved successfully", users});
+            }
+        });
+    } catch (error) {
+        
+    }
+}
+
 module.exports = {
     createUser,
     login,
-    verifyMe
+    verifyMe,
+    getAllUsers
 }
