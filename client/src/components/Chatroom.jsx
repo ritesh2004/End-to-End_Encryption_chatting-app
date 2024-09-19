@@ -1,54 +1,75 @@
-import React from "react";
+import { all } from "axios";
+import React, { useEffect, useState } from "react";
 
-export const Chatroom = () => {
+export const Chatroom = ({ socket, recipaent, room }) => {
+  const [message, setMessage] = useState("");
+  // const [received, setReceived] = useState("");
+  const [allMessages, setAllMessages] = useState([]);
+
+  const sendMessage = () => {
+    socket.emit("send-message", {
+      message,
+      recipaent,
+      room,
+    });
+    setAllMessages((prev) => [...prev, { message, recipaent }]);
+    setMessage("");
+  };
+
+  useEffect(() => {
+    console.log("messages",allMessages);
+  }, [allMessages]);
+
+  useEffect(() => {
+    if (!socket) return;
+    socket.on("receive-message", (msg) => {
+      // console.log(msg);
+      // setReceived(msg);
+      setAllMessages((prev) => [...prev, msg]);
+      // console.log("messages",allMessages);
+    });
+  },[socket]);
+
   return (
     <div className="px-2 relative overflow-y-auto">
       <div className="h-full mb-28">
-        <div className="chat chat-start">
-          <div className="chat-bubble bg-[#272727] font-mont text-white">
-            Lorem ipsum dolor sit amet consectetur adipisicing elit. Omnis iste
-            nisi voluptate, voluptatum itaque accusamus optio sapiente?
-            Similique voluptates alias quaerat numquam eaque voluptatibus iste
-            consequatur eius culpa enim aliquid possimus reiciendis id
-            laudantium quam fuga perferendis, voluptate, sapiente eligendi
-            recusandae! Obcaecati sapiente rerum dolores sit, quo quis porro
-            asperiores!
+        {allMessages.length > 0 && allMessages.map((msg)=>{
+          return (
+            <div
+            className={
+              msg.recipaent.email === recipaent.email
+                ? "chat chat-end"
+                : "chat chat-start"
+            }
+          >
+            <div
+              className={
+                msg.recipaent.email === recipaent.email
+                  ? "chat-bubble bg-[#036825] font-mont text-white"
+                  : "chat-bubble bg-[#272727] font-mont text-white"
+              }
+            >
+              {msg.message}
+            </div>
           </div>
-        </div>
-        <div className="chat chat-end">
-          <div className="chat-bubble bg-[#036825] font-mont text-white">
-            Lorem ipsum dolor sit amet consectetur adipisicing elit. Vero vel
-            dolore numquam necessitatibus molestiae culpa laudantium
-            exercitationem beatae reiciendis itaque eligendi sit tempora omnis
-            error nostrum dolor, unde assumenda dicta blanditiis. Id
-            necessitatibus ad vitae at blanditiis eaque hic eveniet enim,
-            incidunt doloribus veniam illum quis repudiandae vel. Doloremque
-            dolores maiores eos soluta quisquam ipsa eum ipsam corrupti quas
-            exercitationem aliquam veritatis vero libero quasi accusamus sunt,
-            odio repellat quam! Reiciendis corporis alias ducimus totam
-            laudantium quaerat laboriosam sit consectetur aut minus esse, harum
-            eum adipisci culpa officiis, commodi iure quod! A commodi soluta sit
-            officia rem dolores minus non?
-          </div>
-        </div>
-        <div className="chat chat-start">
-          <div className="chat-bubble bg-[#272727] font-mont text-white">
-            Lorem ipsum dolor sit amet consectetur adipisicing elit. Alias
-            repellat id ex dolore. Architecto accusamus amet fugit? Tempore, aut
-            consequuntur.
-          </div>
-        </div>
+          )
+        })}
       </div>
 
-      <div className="bg-[#282828] w-[90%] md:w-[42%] lg:w-[42%] xl:w-[48%] h-[64px] rounded-lg flex flex-row gap-5 items-center px-5 fixed bottom-5">
+      <div className="bg-[#282828] w-[90%] md:w-[57%] lg:w-[42%] xl:w-[48%] h-[64px] rounded-lg flex flex-row gap-5 items-center px-5 fixed bottom-5">
         <input
           className="w-[90%] rounded-lg h-[46px] bg-[#3C3C3C] px-5 text-[#7FFFAB] font-mont"
           type="text"
           name="message"
           id="message"
           placeholder="Type a message..."
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
         />
-        <button className="h-[46px] w-[60px] flex justify-center items-center bg-[#3C3C3C] rounded-lg">
+        <button
+          className="h-[46px] w-[60px] flex justify-center items-center bg-[#3C3C3C] rounded-lg"
+          onClick={sendMessage}
+        >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="16"

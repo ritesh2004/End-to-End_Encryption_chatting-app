@@ -14,7 +14,7 @@ const verify = (req, res, next) => {
                     return res.status(500).json({message: error.message});
                 } else {
                     const userObj = Object.assign({}, results[0]);
-                    console.log(userObj);
+                    // console.log(userObj);
                     req.user = userObj;
                     next();
                 }

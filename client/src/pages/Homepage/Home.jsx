@@ -1,18 +1,24 @@
-import React, { useContext, useEffect,useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { Chat } from "../../components/Chat";
 import { Chatroom } from "../../components/Chatroom";
 import axios from "axios";
 import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import app from "../../Firebase";
 import AuthContext from "../../context/Authcontext";
+import { io } from "socket.io-client";
+import AsyncImgLoader from "../../components/AsyncImgLoader";
 
 export const Home = () => {
+  // Socket io initialization
   const auth = getAuth(app);
   const provider = new GoogleAuthProvider();
 
-  const { user,setUser } = useContext(AuthContext);
+  const { user, setUser } = useContext(AuthContext);
 
-  const [users,setUsers] = useState([]);  
+  const [users, setUsers] = useState([]);
+  const [room, setRoom] = useState();
+  const [recipaent, setRecipaent] = useState();
+  const [socket,setSocket] = useState();
 
   const login = async () => {
     try {
@@ -20,14 +26,18 @@ export const Home = () => {
       const user = result.user;
       console.log(user);
       const { displayName, email } = user;
-      const { data } = await axios.post("http://localhost:5000/api/v1/user/create", {
-        name: displayName,
-        email: email,
-        provider: "google",
-        photoURL: user.providerData[0].photoURL,
-      },{
-        withCredentials: true
-      })
+      const { data } = await axios.post(
+        "http://localhost:5000/api/v1/user/create",
+        {
+          name: displayName,
+          email: email,
+          provider: "google",
+          photoURL: user.providerData[0].photoURL,
+        },
+        {
+          withCredentials: true,
+        }
+      );
       console.log(data);
       setUser(data?.user);
     } catch (error) {
@@ -62,13 +72,68 @@ export const Home = () => {
     }
   };
 
+  const updateSocketId = async (socketId) => {
+    try {
+      const { data } = await axios.post(
+        "http://localhost:5000/api/v1/user/edit/socket",
+        {
+          socketId: socketId,
+        },
+        {
+          withCredentials: true,
+        }
+      );
+      console.log(data);
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
   useEffect(() => {
     getUser();
   }, []);
 
-  useEffect(()=>{
+  useEffect(() => {
     getAllUsers();
-  },[user]);
+  }, [user]);
+
+  const requestForRoom = (user2) => {
+    setRecipaent(user2);
+    socket.emit("make-room", { user1: user?.email, user2: user2.email });
+  };
+
+  // Handling socket io
+  // client-side
+  useEffect(()=>{
+    const newSocket = io("http://localhost:5000");
+    setSocket(newSocket);
+
+    return () => {
+      if (newSocket){
+        newSocket.disconnect();
+      }
+    }
+  },[]);
+
+  useEffect(()=>{
+    if (!socket) return;
+
+    socket.on("connect", () => {
+      console.log("connected");
+      console.log(socket.id); // x8WIv7-mJelg7on_ALbx
+      updateSocketId(socket.id);
+    });
+  
+    socket.on("disconnect", () => {
+      console.log(socket.id); // undefined
+    });
+  
+    socket.on("made-room", (msg) => {
+      console.log(msg);
+      setRoom(msg);
+    });
+  },[socket]);
+  
 
   return (
     <div className="min-h-screen bg-[#090909] pt-5">
@@ -96,7 +161,11 @@ export const Home = () => {
           </h1>
           <div className="avatar">
             <div className="ring-[#99FFAF] ring-offset-base-100 w-10 rounded-full ring-1 ring-offset-2">
-              {!user ? <img src="https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp" /> : <img src={user.photoURL} />}
+              {!user ? (
+                <AsyncImgLoader src="https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp"/>
+              ) : (
+                <AsyncImgLoader src={user.photoURL} />
+              )}
             </div>
           </div>
         </div>
@@ -104,25 +173,41 @@ export const Home = () => {
         <div className="w-2/3 px-10 flex flex-row gap-5 items-center">
           <div className="avatar">
             <div className="ring-[#99FFAF] ring-offset-base-100 w-10 rounded-full ring-1 ring-offset-2">
-              <img src="https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp" />
+              {!recipaent ? (
+                <AsyncImgLoader src="https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp"/>
+              ) : (
+                <AsyncImgLoader src={recipaent.photoURL} />
+              )}
             </div>
           </div>
-          <h2 className="text-[#FFFFFF] font-mont font-medium text-2xl">
-            Jon Doe
-          </h2>
+          <div>
+            {!recipaent ? <h2 className="text-[#FFFFFF] font-mont font-medium text-2xl">
+              Jon Doe
+            </h2>: <h2 className="text-[#FFFFFF] font-mont font-medium text-2xl">
+              {recipaent.fullname}
+            </h2>}
+            <p className="text-[#99FFAF] font-mont font-medium text-sm">
+              Online
+            </p>
+          </div>
         </div>
       </div>
 
       <div className="mx-auto w-[95%] md:w-[90%] lg:w-[86%] xl:w-[80%] border-2 border-[#202020] h-[calc(100vh-150px)] rounded-lg mt-5 flex flex-row md:divide-x-4 md:divide-[#1C1C1C] my-2">
         <div className="hidden md:h-auto md:overflow-y-auto md:block md:w-[320px] lg:w-1/3 md:flex md:flex-col md:px-2 md:py-2 md:gap-2">
-          {
-            users.map((user) => (
-              <Chat key={user.id} photoURL={user.photoURL} name={user.fullname} id={user.id} />
-            ))
-          }
+          {users.map((user) => (
+            <div onClick={() => requestForRoom(user)}>
+              <Chat
+                key={user.id}
+                photoURL={user.photoURL}
+                name={user.fullname}
+                id={user.id}
+              />
+            </div>
+          ))}
         </div>
-        <div className="w-2/3 h-full overflow-y-auto">
-          <Chatroom />
+        <div className="w-full lg:w-2/3 h-full overflow-y-auto">
+          <Chatroom socket={socket} recipaent={recipaent} room={room} />
         </div>
       </div>
 

@@ -7,7 +7,10 @@ io.on("connection", (socket) => {
     console.log("User disconnected: ",socket.id);
   });
 
-  socket.on("chat message", (msg) => {
-    io.emit("chat message", msg);
+  socket.on("make-room", (msg) => {
+    console.log("Room request: ",msg);
+    let roomname = msg.user1 + msg.user2;
+    console.log("Room name: ",roomname);
+    io.emit("made-room", roomname);
   });
 });
