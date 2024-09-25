@@ -7,6 +7,7 @@ import app from "../../Firebase";
 import AuthContext from "../../context/Authcontext";
 import { io } from "socket.io-client";
 import AsyncImgLoader from "../../components/AsyncImgLoader";
+import forge from "node-forge";
 
 export const Home = () => {
   // Socket io initialization
@@ -16,9 +17,10 @@ export const Home = () => {
   const { user, setUser } = useContext(AuthContext);
 
   const [users, setUsers] = useState([]);
-  const [room, setRoom] = useState();
   const [recipaent, setRecipaent] = useState();
   const [socket,setSocket] = useState();
+  const [publicKey, setPublicKey] = useState('');
+  const [privateKey, setPrivateKey] = useState('');
 
   const login = async () => {
     try {
@@ -89,6 +91,20 @@ export const Home = () => {
     }
   };
 
+  const updatePublicKey = async (key) => {
+    try {
+      const { data } = await axios.post("http://localhost:5000/api/v1/user/edit/publickey", {
+        publickey: key,
+      },{
+        withCredentials: true,
+      });
+      console.log(data);
+    }
+    catch (error) {
+      console.log(error);
+    }
+  };
+
   useEffect(() => {
     getUser();
   }, []);
@@ -97,10 +113,17 @@ export const Home = () => {
     getAllUsers();
   }, [user]);
 
-  const requestForRoom = (user2) => {
-    setRecipaent(user2);
-    socket.emit("make-room", { user1: user?.email, user2: user2.email });
-  };
+  useEffect(() => {
+    // Generate RSA key pair on load
+    const { publicKey, privateKey } = forge.pki.rsa.generateKeyPair(2048);
+    const publicKeyPem = forge.pki.publicKeyToPem(publicKey);
+    const privateKeyPem = forge.pki.privateKeyToPem(privateKey);
+    console.log(publicKeyPem);
+    console.log(privateKeyPem);
+    updatePublicKey(publicKeyPem);
+    setPublicKey(publicKeyPem);
+    setPrivateKey(privateKeyPem);
+  }, []);
 
   // Handling socket io
   // client-side
@@ -127,11 +150,6 @@ export const Home = () => {
     socket.on("disconnect", () => {
       console.log(socket.id); // undefined
     });
-  
-    socket.on("made-room", (msg) => {
-      console.log(msg);
-      setRoom(msg);
-    });
   },[socket]);
   
 
@@ -152,9 +170,9 @@ export const Home = () => {
               <path
                 d="M13.6759 1.5L1.5 13.5L13.6759 21.9953M13.6759 21.9953V10.4906L22.5793 15.2849L13.6759 21.9953ZM13.6759 21.9953L23.5 27.7477L13.6759 33.5V21.9953Z"
                 stroke="#99FFAF"
-                stroke-width="2.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
             </svg>{" "}
             chatapp
@@ -196,7 +214,7 @@ export const Home = () => {
       <div className="mx-auto w-[95%] md:w-[90%] lg:w-[86%] xl:w-[80%] border-2 border-[#202020] h-[calc(100vh-150px)] rounded-lg mt-5 flex flex-row md:divide-x-4 md:divide-[#1C1C1C] my-2">
         <div className="hidden md:h-auto md:overflow-y-auto md:block md:w-[320px] lg:w-1/3 md:flex md:flex-col md:px-2 md:py-2 md:gap-2">
           {users.map((user) => (
-            <div onClick={() => requestForRoom(user)}>
+            <div key={user.id} onClick={()=>setRecipaent(user)}>
               <Chat
                 key={user.id}
                 photoURL={user.photoURL}
@@ -207,7 +225,7 @@ export const Home = () => {
           ))}
         </div>
         <div className="w-full lg:w-2/3 h-full overflow-y-auto">
-          <Chatroom socket={socket} recipaent={recipaent} room={room} />
+          <Chatroom socket={socket} recipaent={recipaent} privateKeypem={privateKey} />
         </div>
       </div>
 

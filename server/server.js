@@ -7,6 +7,7 @@ const { Server } = require("socket.io");
 const http = require("http");
 const cors = require("cors");
 const { getUser } = require("./controllers/users.controller");
+const crypto = require("crypto");
 dotenv.config("./.env");
 
 const app = express();

@@ -172,6 +172,31 @@ const updateSocketId = (req, res) => {
   }
 };
 
+const updatePublicKey = (req, res) => {
+  try {
+    const { publickey } = req.body;
+    // console.log(publickey);
+    const { id } = req.user;
+    db.query("USE chatdb");
+    db.query(
+      "UPDATE users SET secret = ? WHERE id = ?",
+      [publickey, id],
+      (error, results) => {
+        if (error) {
+          console.log(error);
+          return res.status(500).json({ message: error.message });
+        } else {
+          return res
+            .status(200)
+            .json({ message: "Publick Key updated successfully" });
+        }
+      }
+    );
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 const getUser = (id) => {
   try {
     db.query("USE chatdb");
@@ -191,6 +216,27 @@ const getUser = (id) => {
   }
 }
 
+const getUserSecret = (req,res) => {
+  try {
+    const { id } = req.params;
+    db.query("USE chatdb");
+    db.query("SELECT secret,email FROM users WHERE id = ?", [id], (error, results) => {
+      if (error) {
+        console.log(error);
+        return null;
+      } else {
+        // console.log(Object.assign({}, results[0]))
+        const user = Object.assign({}, results[0]);
+        return res
+          .status(200)
+          .json({ message: "Secret retrieved successfully", user });
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+}
+
 module.exports = {
   createUser,
   login,
@@ -198,4 +244,6 @@ module.exports = {
   getAllUsers,
   updateSocketId,
   getUser,
+  updatePublicKey,
+  getUserSecret,
 };
