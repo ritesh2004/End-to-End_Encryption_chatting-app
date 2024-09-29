@@ -26,7 +26,12 @@ export const Home = () => {
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-      console.log(user);
+      // console.log(user);
+      const { publicKey, privateKey } = forge.pki.rsa.generateKeyPair(2048);
+      const publicKeyPem = forge.pki.publicKeyToPem(publicKey);
+      const privateKeyPem = forge.pki.privateKeyToPem(privateKey);
+      // console.log(publicKeyPem);
+      // console.log(privateKeyPem);
       const { displayName, email } = user;
       const { data } = await axios.post(
         "http://localhost:5000/api/v1/user/create",
@@ -35,12 +40,14 @@ export const Home = () => {
           email: email,
           provider: "google",
           photoURL: user.providerData[0].photoURL,
+          publicKey: publicKeyPem,
+          privateKey: privateKeyPem,
         },
         {
           withCredentials: true,
         }
       );
-      console.log(data);
+      // console.log(data);
       setUser(data?.user);
     } catch (error) {
       console.log(error);
@@ -55,7 +62,7 @@ export const Home = () => {
           withCredentials: true,
         }
       );
-      console.log(data);
+      // console.log(data);
       setUser(data?.user);
     } catch (error) {
       document.getElementById("my_modal_1").showModal();
@@ -67,7 +74,7 @@ export const Home = () => {
       const { data } = await axios.get("http://localhost:5000/api/v1/users", {
         withCredentials: true,
       });
-      console.log(data);
+      // console.log(data);
       setUsers(data?.users);
     } catch (error) {
       console.log(error);
@@ -85,7 +92,7 @@ export const Home = () => {
           withCredentials: true,
         }
       );
-      console.log(data);
+      // console.log(data);
     } catch (error) {
       console.log(error);
     }
@@ -98,7 +105,7 @@ export const Home = () => {
       },{
         withCredentials: true,
       });
-      console.log(data);
+      // console.log(data);
     }
     catch (error) {
       console.log(error);
@@ -112,18 +119,6 @@ export const Home = () => {
   useEffect(() => {
     getAllUsers();
   }, [user]);
-
-  useEffect(() => {
-    // Generate RSA key pair on load
-    const { publicKey, privateKey } = forge.pki.rsa.generateKeyPair(2048);
-    const publicKeyPem = forge.pki.publicKeyToPem(publicKey);
-    const privateKeyPem = forge.pki.privateKeyToPem(privateKey);
-    console.log(publicKeyPem);
-    console.log(privateKeyPem);
-    updatePublicKey(publicKeyPem);
-    setPublicKey(publicKeyPem);
-    setPrivateKey(privateKeyPem);
-  }, []);
 
   // Handling socket io
   // client-side
@@ -225,7 +220,7 @@ export const Home = () => {
           ))}
         </div>
         <div className="w-full lg:w-2/3 h-full overflow-y-auto">
-          <Chatroom socket={socket} recipaent={recipaent} privateKeypem={privateKey} />
+          <Chatroom socket={socket} recipaent={recipaent} privateKeypem={user?.privateKey} />
         </div>
       </div>
 

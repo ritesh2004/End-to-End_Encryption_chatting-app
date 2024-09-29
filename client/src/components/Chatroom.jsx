@@ -1,6 +1,7 @@
 import axios from "axios";
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import forge from "node-forge";
+import AuthContext from "../context/Authcontext";
 
 export const Chatroom = ({ socket, recipaent, privateKeypem }) => {
   let decrypted;
@@ -8,6 +9,8 @@ export const Chatroom = ({ socket, recipaent, privateKeypem }) => {
   const [allMessages, setAllMessages] = useState([]);
   const [recipientPublicKey, setRecipientPublicKey] = useState("");
   // const [privateKeyPem, setPrivateKeyPem] = useState("");
+
+  const { user } = useContext(AuthContext);
 
   useEffect(() => {
     console.log("Recipient in Chatroom: ", recipaent);
@@ -20,8 +23,8 @@ export const Chatroom = ({ socket, recipaent, privateKeypem }) => {
             withCredentials: true,
           }
         );
-        console.log("Secret Key: ", data);
-        setRecipientPublicKey(data.user.secret);
+        // console.log("Secret Key: ", data);
+        setRecipientPublicKey(data.user.publicKey);
       } catch (error) {
         console.log(error);
       }
@@ -32,9 +35,9 @@ export const Chatroom = ({ socket, recipaent, privateKeypem }) => {
   useEffect(() => {
     if (!socket) return;
     socket.on("receive-message", async (msg) => {
-      console.log("Received Message: ", msg);
+      // console.log("Received Message: ", msg);
       const decryptedMessage = decryptMessage(msg.message);
-      console.log("Decrypted Message: ", decryptedMessage);
+      // console.log("Decrypted Message: ", decryptedMessage);
       if (decryptedMessage) {
         // Safely update the state
         setAllMessages((prev) => [
@@ -47,23 +50,23 @@ export const Chatroom = ({ socket, recipaent, privateKeypem }) => {
 
   // Encrypt message with recipient's public key
   const encryptMessage = (message, recipientPublicKey) => {
-    console.log("Encryption Started");
+    // console.log("Encryption Started");
     const publicKey = forge.pki.publicKeyFromPem(recipientPublicKey);
-    console.log("Public Key: ", publicKey);
+    // console.log("Public Key: ", publicKey);
     const encrypted = publicKey.encrypt(forge.util.encodeUtf8(message));
-    console.log("Encrypted: ", encrypted);
+    // console.log("Encrypted: ", encrypted);
     return forge.util.encode64(encrypted); // Base64 encode the encrypted message
   };
 
   // Decrypt received message
   const decryptMessage = (encryptedMessage) => {
-      console.log("Decryption Started");
-      const privateKey = forge.pki.privateKeyFromPem(privateKeypem);
-      console.log("Private Key: ", privateKey);
+      // console.log("Decryption Started");
+      const privateKey = forge.pki.privateKeyFromPem(user.privateKey);
+      // console.log("Private Key: ", privateKey);
       const decodedMessage = forge.util.decode64(encryptedMessage);
-      console.log("Decoded Message: ", decodedMessage);
+      // console.log("Decoded Message: ", decodedMessage);
       decrypted = privateKey.decrypt(decodedMessage);
-      console.log("Decrypted: ", decrypted);
+      // console.log("Decrypted: ", decrypted);
       return forge.util.decodeUtf8(decrypted);
   };
 

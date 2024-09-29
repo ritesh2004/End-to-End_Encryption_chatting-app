@@ -8,9 +8,9 @@ const verify = require("../middleware/verify.middleware");
 
 const createUser = (req, res) => {
   try {
-    const { name, email, provider, photoURL } = req.body;
+    const { name, email, provider, photoURL, publicKey,privateKey } = req.body;
     let resultObj;
-    if (!name || !email || !provider || !photoURL) {
+    if (!name || !email || !provider || !photoURL || !publicKey || !privateKey) {
       return res.status(400).json({ message: "Please fill in all fields" });
     }
     db.query("USE chatdb");
@@ -30,8 +30,8 @@ const createUser = (req, res) => {
             .replace("T", " ");
           db.query("USE chatdb");
           db.query(
-            "INSERT INTO users(fullname,email,provider,createdAt,photoURL) VALUES(?,?,?,?,?)",
-            [name, email, provider, timestamp, photoURL],
+            "INSERT INTO users(fullname,email,provider,createdAt,photoURL,publicKey,privateKey) VALUES(?,?,?,?,?,?,?)",
+            [name, email, provider, timestamp, photoURL, publicKey, privateKey],
             (error, results) => {
               if (error) {
                 console.log(error);
@@ -126,7 +126,7 @@ const verifyMe = (req, res) => {
 const getAllUsers = (req, res) => {
   try {
     db.query("USE chatdb");
-    db.query("SELECT * FROM users", (error, results) => {
+    db.query("SELECT id,fullname,email,socketId,publicKey FROM users", (error, results) => {
       if (error) {
         console.log(error);
         return res.status(500).json({ message: error.message });
@@ -220,7 +220,7 @@ const getUserSecret = (req,res) => {
   try {
     const { id } = req.params;
     db.query("USE chatdb");
-    db.query("SELECT secret,email FROM users WHERE id = ?", [id], (error, results) => {
+    db.query("SELECT publicKey,email FROM users WHERE id = ?", [id], (error, results) => {
       if (error) {
         console.log(error);
         return null;
