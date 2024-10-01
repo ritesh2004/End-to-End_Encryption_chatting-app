@@ -2,6 +2,7 @@ const express = require("express");
 const dotenv = require("dotenv");
 const db = require("./database/db");
 const userRouter = require("./routes/users.routes");
+const chatRouter = require("./routes/chats.routes");
 const cookieParser = require("cookie-parser");
 const { Server } = require("socket.io");
 const http = require("http");
@@ -31,6 +32,7 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 app.use("/api/v1", userRouter);
+app.use("/api/v1", chatRouter);
 
 const port = process.env.PORT || 3000;
 

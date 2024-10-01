@@ -1,86 +1,199 @@
 import axios from "axios";
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useState,useCallback } from "react";
 import forge from "node-forge";
 import AuthContext from "../context/Authcontext";
 
 export const Chatroom = ({ socket, recipaent, privateKeypem }) => {
-  let decrypted;
   const [message, setMessage] = useState("");
   const [allMessages, setAllMessages] = useState([]);
   const [recipientPublicKey, setRecipientPublicKey] = useState("");
-  // const [privateKeyPem, setPrivateKeyPem] = useState("");
+  const [isReady, setIsReady] = useState(false);
 
   const { user } = useContext(AuthContext);
 
-  useEffect(() => {
-    console.log("Recipient in Chatroom: ", recipaent);
-    // setPrivateKeyPem(privateKeypem);
-    const getSecretKey = async () => {
-      try {
-        const { data } = await axios.get(
-          `http://localhost:5000/api/v1/user/secret/${recipaent.id}`,
-          {
-            withCredentials: true,
-          }
-        );
-        // console.log("Secret Key: ", data);
-        setRecipientPublicKey(data.user.publicKey);
-      } catch (error) {
-        console.log(error);
-      }
-    };
-    getSecretKey();
+  const getSecretKey = useCallback(async () => {
+    if (!recipaent || !recipaent.id) return;
+    try {
+      const { data } = await axios.get(
+        `http://localhost:5000/api/v1/user/secret/${recipaent.id}`,
+        {
+          withCredentials: true,
+        }
+      );
+      setRecipientPublicKey(data.user.publicKey);
+    } catch (error) {
+      console.error("Error fetching secret key:", error);
+    }
   }, [recipaent]);
 
   useEffect(() => {
-    if (!socket) return;
-    socket.on("receive-message", async (msg) => {
-      // console.log("Received Message: ", msg);
-      const decryptedMessage = decryptMessage(msg.message);
-      // console.log("Decrypted Message: ", decryptedMessage);
-      if (decryptedMessage) {
-        // Safely update the state
-        setAllMessages((prev) => [
-          ...prev,
-          { message: decryptedMessage, recipaent: msg.recipaent },
-        ]);
+    getSecretKey();
+  }, [getSecretKey]);
+
+  useEffect(() => {
+    if (user?.privateKey && recipientPublicKey) {
+      setIsReady(true);
+    }
+  }, [user, recipientPublicKey]);
+
+  useEffect(() => {
+    if (!socket || !isReady) return;
+    
+    const handleReceiveMessage = async (msg) => {
+      try {
+        const decryptedMessage = decryptMessage(msg.message,false);
+        if (decryptedMessage) {
+          setAllMessages((prev) => [
+            ...prev,
+            { message: decryptedMessage, recipaent: msg.recipaent },
+          ]);
+        }
+      } catch (error) {
+        console.error("Error handling received message:", error);
       }
-    });
-  }, [socket]);
+    };
 
-  // Encrypt message with recipient's public key
-  const encryptMessage = (message, recipientPublicKey) => {
-    // console.log("Encryption Started");
-    const publicKey = forge.pki.publicKeyFromPem(recipientPublicKey);
-    // console.log("Public Key: ", publicKey);
-    const encrypted = publicKey.encrypt(forge.util.encodeUtf8(message));
-    // console.log("Encrypted: ", encrypted);
-    return forge.util.encode64(encrypted); // Base64 encode the encrypted message
-  };
+    socket.on("receive-message", handleReceiveMessage);
 
-  // Decrypt received message
-  const decryptMessage = (encryptedMessage) => {
-      // console.log("Decryption Started");
+    return () => {
+      socket.off("receive-message", handleReceiveMessage);
+    };
+  }, [socket, isReady]);
+
+  const encryptMessage = useCallback((message) => {
+    if (!recipientPublicKey || !message) return null;
+
+    try {
+      const symmetricKey = forge.random.getBytesSync(16);
+      const cipher = forge.cipher.createCipher('AES-CBC', symmetricKey);
+      const iv = forge.random.getBytesSync(16);
+      cipher.start({ iv: iv });
+      cipher.update(forge.util.createBuffer(message));
+      cipher.finish();
+      const encryptedData = cipher.output.getBytes();
+
+      const recipientpublicKey = forge.pki.publicKeyFromPem(recipientPublicKey);
+      const senderpublicKey = forge.pki.publicKeyFromPem(user.publicKey);
+      const recipientEncryptedSymmetricKey = recipientpublicKey.encrypt(symmetricKey);
+      const senderEncryptedSymmetricKey = senderpublicKey.encrypt(symmetricKey);
+
+      return JSON.stringify({
+        data: forge.util.encode64(encryptedData),
+        recipientKey: forge.util.encode64(recipientEncryptedSymmetricKey),
+        senderKey: forge.util.encode64(senderEncryptedSymmetricKey),
+        iv: forge.util.encode64(iv),
+      });
+    } catch (error) {
+      console.error("Encryption failed:", error);
+      return null;
+    }
+  }, [recipientPublicKey,user]);
+
+  const decryptMessage = useCallback((encryptedMessage,isMe) => {
+    if (!encryptedMessage || !user?.privateKey) return null;
+    
+    try {
+      const encryptedPackage = JSON.parse(encryptedMessage);
+      const encryptedData = forge.util.decode64(encryptedPackage.data);
+      let encryptedSymmetricKey = null;
+      if (isMe){
+        encryptedSymmetricKey = forge.util.decode64(encryptedPackage.senderKey);
+      }
+      else{
+        encryptedSymmetricKey = forge.util.decode64(encryptedPackage.recipientKey);
+      }
+      const iv = forge.util.decode64(encryptedPackage.iv);
+
       const privateKey = forge.pki.privateKeyFromPem(user.privateKey);
-      // console.log("Private Key: ", privateKey);
-      const decodedMessage = forge.util.decode64(encryptedMessage);
-      // console.log("Decoded Message: ", decodedMessage);
-      decrypted = privateKey.decrypt(decodedMessage);
-      // console.log("Decrypted: ", decrypted);
-      return forge.util.decodeUtf8(decrypted);
-  };
+      const symmetricKey = privateKey.decrypt(encryptedSymmetricKey);
 
-  const sendMessage = () => {
-    if (!message) return;
-    const encryptedMessage = encryptMessage(message, recipientPublicKey);
+      const decipher = forge.cipher.createDecipher('AES-CBC', symmetricKey);
+      decipher.start({ iv: iv });
+      decipher.update(forge.util.createBuffer(encryptedData));
+      decipher.finish();
+
+      return decipher.output.toString();
+    } catch (error) {
+      console.error('Decryption failed:', error);
+      return null;
+    }
+  }, [user]);
+
+  const sendMessage = async () => {
+    if (!message || !isReady) return;
+    
+    const encryptedMessage = encryptMessage(message);
+    if (!encryptedMessage) {
+      console.error("Failed to encrypt message");
+      return;
+    }
+
     socket.emit("send-message", {
       message: encryptedMessage,
       recipaent,
     });
 
+    const { data } = await axios.post(
+      "http://localhost:5000/api/v1/chat/create",
+      {
+        message: encryptedMessage,
+        receiverId: recipaent.id,
+        senderId: user.id,
+      },
+      {
+        withCredentials: true,
+      }
+    );
+
     setAllMessages((prev) => [...prev, { message, recipaent }]);
     setMessage("");
   };
+
+
+  useEffect(() => {
+    const fetchMessages = async () => {
+      try {
+        const { data } = await axios.post(
+          "http://localhost:5000/api/v1/chat/get",
+          {
+            senderId: user.id,
+            receiverId: recipaent.id,
+          },
+          {
+            withCredentials: true,
+          }
+        );
+        // setAllMessages(data.chats);
+        console.log(data);
+        if (data?.chats) {
+          const messages = data.chats.map((msg) => {
+            if (msg.from_id === user.id) {
+              return {
+                message: decryptMessage(msg.message,true),
+                recipaent: { email: recipaent.email },
+              };
+            } else {
+              return {
+                message: decryptMessage(msg.message,false),
+                recipaent: { email: user.email },
+              };
+            }
+          });
+          console.log(messages);
+          setAllMessages(messages);
+        }
+      } catch (error) {
+        console.error("Error fetching messages:", error);
+      }
+    };
+    if (isReady){
+      fetchMessages();
+    }
+  },[isReady]);
+
+  if (!isReady) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div className="px-2 relative overflow-y-auto">

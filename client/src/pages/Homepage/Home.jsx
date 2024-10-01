@@ -27,7 +27,7 @@ export const Home = () => {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
       // console.log(user);
-      const { publicKey, privateKey } = forge.pki.rsa.generateKeyPair(2048);
+      const { publicKey, privateKey } = forge.pki.rsa.generateKeyPair({bits: 2048, e: 0x10001});
       const publicKeyPem = forge.pki.publicKeyToPem(publicKey);
       const privateKeyPem = forge.pki.privateKeyToPem(privateKey);
       // console.log(publicKeyPem);
