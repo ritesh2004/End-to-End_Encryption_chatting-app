@@ -8,7 +8,7 @@ export const Chat = ({photoURL,name, id}) => {
     <div className="md:w-[97%] lg:w-[95%] h-[59px] md:h-auto bg-[#141414] flex flex-row py-2 gap-2 items-center px-2 rounded-lg hover:bg-[#0000] cursor-pointer">
       <div className="avatar">
         <div className="w-12 rounded-full">
-          <AsyncImgLoader src={photoURL} />
+          <img src={photoURL} />
         </div>
       </div>
       <div className="flex flex-col">
