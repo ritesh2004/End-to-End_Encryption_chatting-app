@@ -237,6 +237,66 @@ const getUserSecret = (req,res) => {
   }
 }
 
+const editProfile = (req,res) => {
+  try {
+    const { id } = req.params;
+    const { name, photoURL } = req.body;
+    db.query("USE chatdb");
+    db.query(
+      "UPDATE users SET fullname = ?, photoURL = ? WHERE id = ?",
+      [name, photoURL, id],
+      (error, results) => {
+        if (error) {
+          console.log(error);
+          return res.status(500).json({ message: error.message });
+        } else {
+          return res
+            .status(200)
+            .json({ message: "Profile updated successfully" });
+        }
+      }
+    );
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+}
+
+const editLastmsg = (req,res) => {
+  try {
+    const { id } = req.params;
+    const { lastmsg } = req.body;
+    db.query("USE chatdb");
+    db.query(
+      "UPDATE users SET lastmsg = ? WHERE id = ?",
+      [lastmsg, id],
+      (error, results) => {
+        if (error) {
+          console.log(error);
+          return res.status(500).json({ message: error.message });
+        } else {
+          return res
+            .status(200)
+            .json({ message: "Last message updated successfully" });
+        }
+      }
+    );
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+}
+
+const logout = (req,res) => {
+  try {
+    return res
+      .status(200)
+      .clearCookie("refreshToken")
+      .clearCookie("accessToken")
+      .json({ message: "Logout successful" });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+}
+
 module.exports = {
   createUser,
   login,
@@ -246,4 +306,7 @@ module.exports = {
   getUser,
   updatePublicKey,
   getUserSecret,
+  editProfile,
+  editLastmsg,
+  logout
 };
