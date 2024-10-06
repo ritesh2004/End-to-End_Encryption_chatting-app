@@ -38,6 +38,20 @@ export const Chatroom = ({ socket, recipaent }) => {
     }
   }, [recipaent]);
 
+  const editLastmsg = async (id,lastmsg) => {
+    try {
+      const { data } = await axios.post(`http://localhost:5000/api/v1/user/edit/lastmsg/${id}`,{
+        lastmsg
+      },{
+        withCredentials : true
+      });
+
+      console.log(data);
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
   useEffect(() => {
     getSecretKey();
   }, [getSecretKey]);
@@ -172,7 +186,8 @@ export const Chatroom = ({ socket, recipaent }) => {
         withCredentials: true,
       }
     );
-
+    editLastmsg(user.id,message);
+    editLastmsg(recipaent.id,message);
     setAllMessages((prev) => [...prev, { message, recipaent }]);
     setMessage("");
   };

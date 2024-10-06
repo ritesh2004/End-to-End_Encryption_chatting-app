@@ -126,7 +126,7 @@ const verifyMe = (req, res) => {
 const getAllUsers = (req, res) => {
   try {
     db.query("USE chatdb");
-    db.query("SELECT id,fullname,email,socketId,publicKey,photoURL FROM users", (error, results) => {
+    db.query("SELECT id,fullname,email,socketId,publicKey,photoURL,lastmsg FROM users", (error, results) => {
       if (error) {
         console.log(error);
         return res.status(500).json({ message: error.message });
@@ -239,7 +239,7 @@ const getUserSecret = (req,res) => {
 
 const editProfile = (req,res) => {
   try {
-    const { id } = req.params;
+    const { id } = req.user;
     const { name, photoURL } = req.body;
     db.query("USE chatdb");
     db.query(
@@ -252,7 +252,7 @@ const editProfile = (req,res) => {
         } else {
           return res
             .status(200)
-            .json({ message: "Profile updated successfully" });
+            .json({ message: "Profile updated successfully", user: req.user });
         }
       }
     );

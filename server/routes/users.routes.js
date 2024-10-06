@@ -18,7 +18,7 @@ userRouter.post('/user/edit/publickey', verify, updatePublicKey);
 
 userRouter.get('/user/secret/:id', verify, getUserSecret);
 
-userRouter.post('/user/edit/profile/:id', verify, editProfile);
+userRouter.post('/user/edit/profile', verify, editProfile);
 
 userRouter.post('/user/edit/lastmsg/:id', verify, editLastmsg);
 

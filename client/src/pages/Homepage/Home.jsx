@@ -19,6 +19,9 @@ export const Home = () => {
   const [recipaent, setRecipaent] = useState();
   const [socket, setSocket] = useState();
 
+  const [name,setName] = useState(user?.fullname);
+  const [image,setImage] = useState();
+
   const login = async () => {
     try {
       const result = await signInWithPopup(auth, provider);
@@ -54,6 +57,59 @@ export const Home = () => {
     }
   };
 
+  const logout = async () => {
+    try {
+      const { data } = await axios.get(
+        "http://localhost:5000/api/v1/user/logout",
+        {
+          withCredentials: true,
+        }
+      );
+      console.log(data);
+      setUser(null);
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  const uploadImage = async () => {
+    try{
+      const formData = new FormData();
+      formData.append("file",image);
+      formData.append("cloud_name", "drctt42py");
+      formData.append("upload_preset", "rpBucket");
+      const { data } = await axios.post("https://api.cloudinary.com/v1_1/drctt42py/image/upload",formData);
+      return data?.url;
+    }
+    catch(error){
+      console.log(error)
+    }
+  }
+
+  const editProfile = async () => {
+    try {
+      const imgUrl = await uploadImage();
+      console.log(imgUrl)
+      if (!name) return
+      const { data } = await axios.post(
+        "http://localhost:5000/api/v1/user/edit/profile",
+        {
+          name,
+          photoURL:imgUrl
+        },
+        {
+          withCredentials : true
+        }
+      );
+      // console.log(data)
+      setUser(data.user)
+      setName("");
+      setImage(null);
+    } catch (error) {
+      console.log(error)
+    }
+  };
+
   const getUser = async () => {
     try {
       const { data } = await axios.get(
@@ -64,6 +120,7 @@ export const Home = () => {
       );
       // console.log(data);
       setUser(data?.user);
+      setName(data?.user?.fullname)
     } catch (error) {
       document.getElementById("my_modal_1").showModal();
     }
@@ -74,7 +131,7 @@ export const Home = () => {
       const { data } = await axios.get("http://localhost:5000/api/v1/users", {
         withCredentials: true,
       });
-      console.log(data);
+      // console.log(data);
       setUsers(data?.users);
     } catch (error) {
       console.log(error);
@@ -174,10 +231,22 @@ export const Home = () => {
               className="dropdown-content menu bg-[#09090b] border border-[#7FFFAB] border-dashed rounded-box z-[1] w-52 p-2 gap-2"
             >
               <li className="bg-transparent hover:bg-[#7cb518] border border-[#7FFFAB] border-dashed rounded-lg">
-                <span className="text-[#7FFFAB] hover:text-white">EDIT PROFILE</span>
+                <span
+                  className="text-[#7FFFAB] hover:text-white"
+                  onClick={() =>
+                    document.getElementById("update-profile").showModal()
+                  }
+                >
+                  EDIT PROFILE
+                </span>
               </li>
               <li className="bg-transparent hover:bg-[#c32f27] border border-[#7FFFAB] border-dashed rounded-lg">
-                <span className="text-[#7FFFAB] hover:text-white">LOG OUT</span>
+                <span
+                  className="text-[#7FFFAB] hover:text-white"
+                  onClick={logout}
+                >
+                  LOG OUT
+                </span>
               </li>
             </ul>
           </div>
@@ -219,6 +288,7 @@ export const Home = () => {
                 photoURL={user?.photoURL}
                 name={user.fullname}
                 id={user.id}
+                lastmsg={user.lastmsg}
               />
             </div>
           ))}
@@ -227,7 +297,7 @@ export const Home = () => {
           <Chatroom socket={socket} recipaent={recipaent} />
         </div>
       </div>
-
+      {/* Login modal  */}
       <dialog id="my_modal_1" className="modal backdrop-blur-sm bg-black/30">
         <div className="modal-box bg-[#09090b] border border-[#7FFFAB] border-dashed">
           <h3 className="font-bold text-lg text-white">Login to Chat</h3>
@@ -246,6 +316,56 @@ export const Home = () => {
         </div>
       </dialog>
       {/* <Dialogbox/> */}
+
+      {/* update profile modal  */}
+      {/* Open the modal using document.getElementById('ID').showModal() method */}
+      <dialog id="update-profile" className="modal">
+        <div className="modal-box bg-[#09090b] border border-[#7FFFAB] border-dashed">
+          <h3 className="font-semibold text-lg text-[#7FFFAB]">Edit Profile</h3>
+          <div className="w-full flex flex-col justify-center items-center">
+            <div className="w-[85%] flex flex-row justify-between items-center pt-10">
+              <label
+                for="helper-text"
+                className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+              >
+                Name
+              </label>
+              <input
+                type="text"
+                id="helper-text"
+                aria-describedby="helper-text-explanation"
+                className="bg-transparent border border-[#7FFFAB] border-dashed text-white text-sm rounded-lg focus:ring-[#7FFFAB] focus:border-[#7FFFAB] block w-[60%] p-2.5"
+                placeholder="E.g. Jon Doe"
+                value={name}
+                onChange={(e)=>setName(e.target.value)}
+              />
+            </div>
+
+            <div className="w-[85%] flex flex-row justify-between items-center py-10">
+              <label
+                for="helper-text"
+                className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+              >
+                Profile Picture
+              </label>
+              <input
+                type="file"
+                id="helper-text"
+                aria-describedby="helper-text-explanation"
+                className="bg-transparent border border-[#7FFFAB] border-dashed text-white text-sm rounded-lg focus:ring-[#7FFFAB] focus:border-[#7FFFAB] block w-[60%] p-2.5"
+                onChange={(e)=>setImage(e.target.files[0])}
+              />
+            </div>
+          </div>
+
+          <div className="modal-action">
+            <form method="dialog">
+              {/* if there is a button in form, it will close the modal */}
+              <button className="btn bg-transparent border border-[#7FFFAB] border-dashed hover:bg-[#7FFFAB] hover:text-black" onClick={editProfile}>Save Changes</button>
+            </form>
+          </div>
+        </div>
+      </dialog>
     </div>
   );
 };
