@@ -37,7 +37,7 @@ export const Home = () => {
       // console.log(privateKeyPem);
       const { displayName, email } = user;
       const { data } = await axios.post(
-        "http://localhost:5000/api/v1/user/create",
+        `${import.meta.env.VITE_FIREBASE_SERVER_URL}/api/v1/user/create`,
         {
           name: displayName,
           email: email,
@@ -60,7 +60,7 @@ export const Home = () => {
   const logout = async () => {
     try {
       const { data } = await axios.get(
-        "http://localhost:5000/api/v1/user/logout",
+        `${import.meta.env.VITE_FIREBASE_SERVER_URL}/api/v1/user/logout`,
         {
           withCredentials: true,
         }
@@ -92,7 +92,7 @@ export const Home = () => {
       console.log(imgUrl)
       if (!name) return
       const { data } = await axios.post(
-        "http://localhost:5000/api/v1/user/edit/profile",
+        `${import.meta.env.VITE_FIREBASE_SERVER_URL}/api/v1/user/edit/profile`,
         {
           name,
           photoURL:imgUrl
@@ -113,7 +113,7 @@ export const Home = () => {
   const getUser = async () => {
     try {
       const { data } = await axios.get(
-        "http://localhost:5000/api/v1/user/verify",
+        `${import.meta.env.VITE_FIREBASE_SERVER_URL}/api/v1/user/verify`,
         {
           withCredentials: true,
         }
@@ -128,7 +128,7 @@ export const Home = () => {
 
   const getAllUsers = async () => {
     try {
-      const { data } = await axios.get("http://localhost:5000/api/v1/users", {
+      const { data } = await axios.get(`${import.meta.env.VITE_FIREBASE_SERVER_URL}/api/v1/users`, {
         withCredentials: true,
       });
       // console.log(data);
@@ -141,7 +141,7 @@ export const Home = () => {
   const updateSocketId = async (socketId) => {
     try {
       const { data } = await axios.post(
-        "http://localhost:5000/api/v1/user/edit/socket",
+        `${import.meta.env.VITE_FIREBASE_SERVER_URL}/api/v1/user/edit/socket`,
         {
           socketId: socketId,
         },
@@ -166,7 +166,7 @@ export const Home = () => {
   // Handling socket io
   // client-side
   useEffect(() => {
-    const newSocket = io("http://localhost:5000");
+    const newSocket = io(import.meta.env.VITE_FIREBASE_SERVER_URL);
     setSocket(newSocket);
 
     return () => {
@@ -325,7 +325,7 @@ export const Home = () => {
           <div className="w-full flex flex-col justify-center items-center">
             <div className="w-[85%] flex flex-row justify-between items-center pt-10">
               <label
-                for="helper-text"
+                htmlFor="helper-text"
                 className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
               >
                 Name
@@ -343,7 +343,7 @@ export const Home = () => {
 
             <div className="w-[85%] flex flex-row justify-between items-center py-10">
               <label
-                for="helper-text"
+                htmlFor="helper-text"
                 className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
               >
                 Profile Picture
