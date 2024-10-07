@@ -17,6 +17,7 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "mysql": "^2.18.1",
+    "mysql2": "^3.11.3",
     "nodemon": "^3.1.4",
     "socket.io": "^4.7.5",
     "uWebSockets.js": "github:uNetworking/uWebSockets.js#v20.4.0"
