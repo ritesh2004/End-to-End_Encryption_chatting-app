@@ -10,7 +10,7 @@ userRouter.post('/user/login', login);
 
 userRouter.get('/user/verify', verify, verifyMe);
 
-userRouter.get('/users', getAllUsers);
+userRouter.get('/users',verify, getAllUsers);
 
 userRouter.post('/user/edit/socket', verify, updateSocketId);
 

@@ -125,8 +125,9 @@ const verifyMe = (req, res) => {
 
 const getAllUsers = (req, res) => {
   try {
+    const user = req.user
     db.query("USE chatdb");
-    db.query("SELECT id,fullname,email,socketId,publicKey,photoURL,lastmsg FROM users", (error, results) => {
+    db.query("SELECT id,fullname,email,socketId,publicKey,photoURL,lastmsg FROM users WHERE id <> ?",[user?.id], (error, results) => {
       if (error) {
         console.log(error);
         return res.status(500).json({ message: error.message });

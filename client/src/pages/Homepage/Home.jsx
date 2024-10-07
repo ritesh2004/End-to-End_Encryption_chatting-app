@@ -18,6 +18,7 @@ export const Home = () => {
   const [users, setUsers] = useState([]);
   const [recipaent, setRecipaent] = useState();
   const [socket, setSocket] = useState();
+  const [status, setStatus] = useState();
 
   const [name,setName] = useState(user?.fullname);
   const [image,setImage] = useState();
@@ -163,6 +164,13 @@ export const Home = () => {
     getAllUsers();
   }, [user]);
 
+  useEffect(()=>{
+    if (!socket && !user) return;
+    socket.emit("status",{
+      user : user?.id
+    })
+  },[user])
+
   // Handling socket io
   // client-side
   useEffect(() => {
@@ -184,6 +192,11 @@ export const Home = () => {
       console.log(socket.id); // x8WIv7-mJelg7on_ALbx
       updateSocketId(socket.id);
     });
+
+    socket.on("status",(data) => {
+      // console.log(data)
+      setStatus(data)
+    })
 
     socket.on("disconnect", () => {
       console.log(socket.id); // undefined
@@ -273,7 +286,7 @@ export const Home = () => {
               </h2>
             )}
             <p className="text-[#99FFAF] font-mont font-medium text-sm">
-              Online
+              {status?.includes(recipaent?.id) ? "Online" : "Offline"}
             </p>
           </div>
         </div>
@@ -289,6 +302,7 @@ export const Home = () => {
                 name={user.fullname}
                 id={user.id}
                 lastmsg={user.lastmsg}
+                status={status}
               />
             </div>
           ))}

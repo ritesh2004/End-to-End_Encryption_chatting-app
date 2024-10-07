@@ -15,6 +15,8 @@ const app = express();
 
 const server = http.createServer(app);
 
+let onlineUsers = [];
+
 db.connect((err) => {
   if (err) {
     throw err;
@@ -88,6 +90,12 @@ io.on("connection", (socket) => {
       }
     });
   });
+
+  socket.on("status",(data)=>{
+    console.log(data)
+    onlineUsers.push(data?.user)
+    io.emit("status",onlineUsers)
+  })
 });
 
 // Handling routes
