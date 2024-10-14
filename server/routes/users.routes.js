@@ -1,5 +1,5 @@
 const {Router} = require('express');
-const {createUser, login, verifyMe, getAllUsers, updateSocketId, updatePublicKey, getUserSecret, editProfile, editLastmsg, logout} = require('../controllers/users.controller');
+const {createUser, login, verifyMe, getAllUsers, updateSocketId, updatePublicKey, getUserSecret, editProfile, editLastmsg, logout, checkUsernameEmail} = require('../controllers/users.controller');
 const verify = require('../middleware/verify.middleware');
 
 const userRouter = Router();
@@ -7,6 +7,8 @@ const userRouter = Router();
 userRouter.post('/user/create', createUser);
 
 userRouter.post('/user/login', login);
+
+userRouter.post('/user/check', checkUsernameEmail);
 
 userRouter.get('/user/verify', verify, verifyMe);
 

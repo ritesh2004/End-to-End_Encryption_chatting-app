@@ -7,6 +7,9 @@ import app from "../../Firebase";
 import AuthContext from "../../context/Authcontext";
 import { io } from "socket.io-client";
 import forge from "node-forge";
+import { Gallery } from "../../components/Gallery";
+import { Signup } from "../../components/Signup";
+import { Login } from "../../components/Login";
 
 export const Home = () => {
   // Socket io initialization
@@ -19,6 +22,14 @@ export const Home = () => {
   const [recipaent, setRecipaent] = useState();
   const [socket, setSocket] = useState();
   const [status, setStatus] = useState();
+
+  const [showGallery, setShowGallery] = useState(false);
+  const [showSignup, setShowSignup] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+
+  const [username,setUsername] = useState();
+  const [email,setEmail] = useState();
+  const [password,setPassword] = useState();
 
   const [name,setName] = useState(user?.fullname);
   const [image,setImage] = useState();
@@ -123,7 +134,8 @@ export const Home = () => {
       setUser(data?.user);
       setName(data?.user?.fullname)
     } catch (error) {
-      document.getElementById("my_modal_1").showModal();
+      // document.getElementById("my_modal_1").showModal();
+      setShowLogin(true);
     }
   };
 
@@ -166,9 +178,7 @@ export const Home = () => {
 
   useEffect(()=>{
     if (!socket && !user) return;
-    socket.emit("status",{
-      user : user?.id
-    })
+    socket.emit("status",user.id);
   },[user])
 
   // Handling socket io
@@ -204,7 +214,7 @@ export const Home = () => {
   }, [socket]);
 
   return (
-    <div className="min-h-screen bg-[#090909] pt-5">
+    <div className="relative min-h-screen bg-[#090909] pt-5">
       <div className="mx-auto w-[95%] md:w-[90%] lg:w-[86%] xl:w-[80%] border-2 border-[#202020] h-[97px] flex flex-row items-center rounded-lg divide-x-4 divide-[#202020]">
         <div className="hidden md:block md:flex md:w-[320px] lg:w-1/3 flex-row items-center justify-around md:px-5">
           <h1 className="uppercase text-[#99FFAF] font-mont text-xl font-medium flex flex-row items-center gap-2">
@@ -282,7 +292,7 @@ export const Home = () => {
               </h2>
             ) : (
               <h2 className="text-[#FFFFFF] font-mont font-medium text-2xl">
-                {recipaent.fullname}
+                {recipaent.username}
               </h2>
             )}
             <p className="text-[#99FFAF] font-mont font-medium text-sm">
@@ -299,7 +309,7 @@ export const Home = () => {
               <Chat
                 key={user.id}
                 photoURL={user?.photoURL}
-                name={user.fullname}
+                name={user.username}
                 id={user.id}
                 lastmsg={user.lastmsg}
                 status={status}
@@ -380,6 +390,9 @@ export const Home = () => {
           </div>
         </div>
       </dialog>
+      {showLogin && <Login setShowSignUp={setShowSignup} setShowLogin={setShowLogin}/>}
+      {showSignup && <Signup setShowLogin={setShowLogin} setShowGallery={setShowGallery} setUsername={setUsername} setEmail={setEmail} setPassword={setPassword} username={username} password={password} email={email}/>}
+      {showGallery && <Gallery username={username} password={password} email={email} setShowGallery={setShowGallery} />}
     </div>
   );
 };

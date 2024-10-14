@@ -16,6 +16,7 @@ export const Chatroom = ({ socket, recipaent }) => {
   const [isReady, setIsReady] = useState(false);
 
   const endofMessages = useRef(null);
+  const buttonRef = useRef(null);
 
   const { user } = useContext(AuthContext);
 
@@ -89,6 +90,21 @@ export const Chatroom = ({ socket, recipaent }) => {
   useEffect(() => {
     scrollToBottom();
   }, [allMessages]);
+
+  useEffect(() => {
+    const handleSubmit = (e) => {
+      if (e.key === "Enter") {
+        sendMessage();
+      }
+    }
+    if (!buttonRef.current){
+      return;
+    }
+    buttonRef.current.addEventListener("keypress", handleSubmit);
+    return () => {
+      buttonRef.current.removeEventListener("keypress", handleSubmit);
+    }
+  });
 
   const encryptMessage = useCallback(
     (message) => {
@@ -285,7 +301,7 @@ export const Chatroom = ({ socket, recipaent }) => {
   }
 
   return (
-    <div className="px-2 relative overflow-y-hidden no-scrollbar">
+    <div className="px-2 relative overflow-y-hidden no-scrollbar" ref={buttonRef}>
       <div className="h-full mb-28">
         {allMessages.length > 0 &&
           allMessages.map((msg, index) => {

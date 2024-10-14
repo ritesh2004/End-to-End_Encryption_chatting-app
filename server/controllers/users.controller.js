@@ -5,14 +5,16 @@ const {
   generateRefreshToken,
 } = require("../utils/generateTokens");
 const verify = require("../middleware/verify.middleware");
+const bcrypt = require("bcrypt");
 
 const createUser = (req, res) => {
   try {
-    const { name, email, provider, photoURL, publicKey,privateKey } = req.body;
+    const { username, email, password, photoURL, publicKey,privateKey } = req.body;
     let resultObj;
-    if (!name || !email || !provider || !photoURL || !publicKey || !privateKey) {
+    if (!username || !email || !password || !photoURL || !publicKey || !privateKey) {
       return res.status(400).json({ message: "Please fill in all fields" });
     }
+    const encryptedPassword = bcrypt.hashSync(password, 10);
     db.query("USE chatdb");
     db.query(
       "SELECT * FROM users WHERE email = ?",
@@ -30,8 +32,8 @@ const createUser = (req, res) => {
             .replace("T", " ");
           db.query("USE chatdb");
           db.query(
-            "INSERT INTO users(fullname,email,provider,createdAt,photoURL,publicKey,privateKey) VALUES(?,?,?,?,?,?,?)",
-            [name, email, provider, timestamp, photoURL, publicKey, privateKey],
+            "INSERT INTO users(username,password,email,createdAt,photoURL,publicKey,privateKey) VALUES(?,?,?,?,?,?,?)",
+            [username, encryptedPassword, email, timestamp, photoURL, publicKey, privateKey],
             (error, results) => {
               if (error) {
                 console.log(error);
@@ -70,15 +72,15 @@ const createUser = (req, res) => {
 const login = (req, res) => {
   try {
     console.log(req.body);
-    const { email, provider } = req.body;
+    const { user, password } = req.body;
     let resultObj;
-    if (!email || !provider) {
+    if (!user || !password) {
       return res.status(400).json({ message: "Please fill in all fields" });
     }
     db.query("USE chatdb");
     db.query(
-      "SELECT * FROM users WHERE email = ? AND provider = ?",
-      [email, provider],
+      "SELECT password FROM users WHERE username = ? OR email = ?",
+      [user,user],
       (error, results) => {
         if (error) {
           console.log(error);
@@ -86,24 +88,39 @@ const login = (req, res) => {
         } else {
           if (results.length > 0) {
             resultObj = Object.assign({}, results[0]);
-            const accessToken = generateAccessToken(resultObj);
-            const refreshToken = generateRefreshToken(resultObj);
-
-            return res
-              .status(200)
-              .cookie("refreshToken", refreshToken, {
-                httpOnly: true,
-                secure: true,
-                sameSite: "none",
-                maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days
-              })
-              .cookie("accessToken", accessToken, {
-                httpOnly: true,
-                secure: true,
-                sameSite: "none",
-                maxAge: 60 * 15 * 1000, // 15 minutes
-              })
-              .json({ message: "Login successful", user: resultObj });
+            // console.log(resultObj)
+            const isPasswordCorrect = bcrypt.compareSync(password,resultObj.password);
+            console.log(isPasswordCorrect)
+            if (isPasswordCorrect){
+              db.query("USE chatdb");
+              db.query(
+                "SELECT id,username,email,photoURL,socketId,publicKey,privateKey FROM users WHERE username = ? OR email = ?",[user,user],
+                (err, result) => {
+                  resultObj = Object.assign({}, result[0]);
+                  const accessToken = generateAccessToken(resultObj);
+                  const refreshToken = generateRefreshToken(resultObj);
+      
+                  return res
+                    .status(200)
+                    .cookie("refreshToken", refreshToken, {
+                      httpOnly: true,
+                      secure: true,
+                      sameSite: "none",
+                      maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days
+                    })
+                    .cookie("accessToken", accessToken, {
+                      httpOnly: true,
+                      secure: true,
+                      sameSite: "none",
+                      maxAge: 60 * 15 * 1000, // 15 minutes
+                    })
+                    .json({ message: "Login successful", user: resultObj });
+                }
+              )
+            }
+            else {
+              return res.status(401).json({ message: "Incorrect Password" })
+            }
           } else {
             return res.status(404).json({ message: "User not found" });
           }
@@ -112,6 +129,31 @@ const login = (req, res) => {
     );
   } catch (error) {
     return res.status(500).json({ message: error.message });
+  }
+};
+
+const checkUsernameEmail = (req, res) => {
+  try {
+    const { username,email } = req.body;
+    db.query("USE chatdb");
+    db.query(
+      "SELECT * FROM users WHERE username = ? OR email = ?",
+      [username,email],
+      (error, results) => {
+        if (error) {
+          console.log(error);
+          return res.status(500).json({ message: error.message });
+        } else {
+          if (results.length > 0) {
+            return res.status(400).json({ message: "Username and email exists" });
+          } else {
+            return res.status(200).json({ message: "Username and email not found" });
+          }
+        }
+      }
+    );
+  } catch (error) {
+    return res.status(500).json({ message: error.message });  
   }
 };
 
@@ -127,7 +169,7 @@ const getAllUsers = (req, res) => {
   try {
     const user = req.user
     db.query("USE chatdb");
-    db.query("SELECT id,fullname,email,socketId,publicKey,photoURL,lastmsg FROM users WHERE id <> ?",[user?.id], (error, results) => {
+    db.query("SELECT id,username,email,socketId,publicKey,photoURL,lastmsg FROM users WHERE id <> ?",[user?.id], (error, results) => {
       if (error) {
         console.log(error);
         return res.status(500).json({ message: error.message });
@@ -309,5 +351,6 @@ module.exports = {
   getUserSecret,
   editProfile,
   editLastmsg,
-  logout
+  logout,
+  checkUsernameEmail
 };

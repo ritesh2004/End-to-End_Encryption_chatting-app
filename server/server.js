@@ -9,11 +9,26 @@ const http = require("http");
 const cors = require("cors");
 const { getUser } = require("./controllers/users.controller");
 const crypto = require("crypto");
+const https = require("https");
+const fs = require("fs");
+const path = require("path");
 dotenv.config("./.env");
 
 const app = express();
 
-const server = http.createServer(app);
+let server;
+if (process.env.NODE_ENV === "production") {
+  server = https.createServer(
+    {
+      key: fs.readFileSync(path.join(__dirname, "certificates", "key.pem")),
+      cert: fs.readFileSync(path.join(__dirname, "certificates", "cert.pem")),
+    },
+    app
+  );
+}
+else{
+  server = http.createServer(app);
+}
 
 let onlineUsers = [];
 
@@ -36,12 +51,16 @@ app.use(cookieParser());
 app.use("/api/v1", userRouter);
 app.use("/api/v1", chatRouter);
 
+app.get("/",(req,res)=>{
+  res.send("Hello")
+})
+
 const port = process.env.PORT || 3000;
 
 // Handling socket io server
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: process.env.FRONTEND_URL,
     credentials: true,
   },
 });
@@ -51,6 +70,16 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log("User disconnected: ", socket.id);
+    db.query("USE chatdb");
+    db.query("SELECT id FROM users WHERE socketId = ?", [socket.id], (error, results) => {
+      if (error) {
+        console.log(error);
+      } else {
+        const user = Object.assign({}, results[0]);
+        onlineUsers.splice(onlineUsers.indexOf(user.id), 1);
+        io.emit("status", onlineUsers);
+      }
+    });
   });
 
   socket.on("make-room", (msg) => {
@@ -93,7 +122,7 @@ io.on("connection", (socket) => {
 
   socket.on("status",(data)=>{
     console.log(data)
-    onlineUsers.push(data?.user)
+    onlineUsers.push(data)
     io.emit("status",onlineUsers)
   })
 });
