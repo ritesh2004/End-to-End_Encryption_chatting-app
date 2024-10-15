@@ -77,6 +77,9 @@ io.on("connection", (socket) => {
       } else {
         const user = Object.assign({}, results[0]);
         onlineUsers.splice(onlineUsers.indexOf(user.id), 1);
+        const newArray = onlineUsers.filter(item => item !== user.id);
+        onlineUsers = newArray;
+        console.log(onlineUsers);
         io.emit("status", onlineUsers);
       }
     });
@@ -123,6 +126,7 @@ io.on("connection", (socket) => {
   socket.on("status",(data)=>{
     console.log(data)
     onlineUsers.push(data)
+    console.log(onlineUsers)
     io.emit("status",onlineUsers)
   })
 });
