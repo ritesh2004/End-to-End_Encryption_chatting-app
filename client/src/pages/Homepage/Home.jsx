@@ -10,6 +10,8 @@ import forge from "node-forge";
 import { Gallery } from "../../components/Gallery";
 import { Signup } from "../../components/Signup";
 import { Login } from "../../components/Login";
+import { Editprofile } from "../../components/Editprofile";
+import Appcontext from "../../context/Appcontext";
 
 export const Home = () => {
   // Socket io initialization
@@ -23,13 +25,9 @@ export const Home = () => {
   const [socket, setSocket] = useState();
   const [status, setStatus] = useState();
 
-  const [showGallery, setShowGallery] = useState(false);
-  const [showSignup, setShowSignup] = useState(false);
-  const [showLogin, setShowLogin] = useState(false);
+  const { showLogin, setShowLogin, showSignup, setShowSignup, showGallery, setShowGallery, showEdit, setShowEdit } = useContext(Appcontext);
 
-  const [username,setUsername] = useState();
-  const [email,setEmail] = useState();
-  const [password,setPassword] = useState();
+  const [avatar, setAvatar] = useState(null);
 
   const [name,setName] = useState(user?.fullname);
   const [image,setImage] = useState();
@@ -178,7 +176,7 @@ export const Home = () => {
 
   useEffect(()=>{
     if (!socket && !user) return;
-    socket.emit("status",user.id);
+    socket.emit("status",user?.id);
   },[user])
 
   // Handling socket io
@@ -257,7 +255,8 @@ export const Home = () => {
                 <span
                   className="text-[#7FFFAB] hover:text-white"
                   onClick={() =>
-                    document.getElementById("update-profile").showModal()
+                    // document.getElementById("update-profile").showModal()
+                    setShowEdit(true)
                   }
                 >
                   EDIT PROFILE
@@ -390,9 +389,11 @@ export const Home = () => {
           </div>
         </div>
       </dialog>
-      {showLogin && <Login setShowSignUp={setShowSignup} setShowLogin={setShowLogin}/>}
-      {showSignup && <Signup setShowLogin={setShowLogin} setShowGallery={setShowGallery} setUsername={setUsername} setEmail={setEmail} setPassword={setPassword} username={username} password={password} email={email}/>}
-      {showGallery && <Gallery username={username} password={password} email={email} setShowGallery={setShowGallery} />}
+      {showLogin && <Login />}
+      {showSignup && <Signup />}
+      {showGallery && <Gallery />}
+      {/* <Editprofile/> */}
+      {showEdit && <Editprofile/>}
     </div>
   );
 };

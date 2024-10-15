@@ -283,11 +283,11 @@ const getUserSecret = (req,res) => {
 const editProfile = (req,res) => {
   try {
     const { id } = req.user;
-    const { name, photoURL } = req.body;
+    const { username, email, photoURL } = req.body;
     db.query("USE chatdb");
     db.query(
-      "UPDATE users SET fullname = ?, photoURL = ? WHERE id = ?",
-      [name, photoURL, id],
+      "UPDATE users SET username = ?, email = ?, photoURL = ? WHERE id = ?",
+      [username, email, photoURL, id],
       (error, results) => {
         if (error) {
           console.log(error);

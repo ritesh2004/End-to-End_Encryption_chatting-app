@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-import forge from 'node-forge';
+import React, { useContext, useState } from 'react';
+import Appcontext from '../context/Appcontext';
 
-export const Gallery = ({username,email,password,setShowGallery}) => {
+export const Gallery = () => {
+
+    const { setShowGallery, setAvatar } = useContext(Appcontext);
+
     const [selectedAvatar, setSelectedAvatar] = useState(null);
     const avatars = [
         "https://res.cloudinary.com/drctt42py/image/upload/v1728644229/chatapp-avatars/9_ogo64q.png",
@@ -19,31 +21,13 @@ export const Gallery = ({username,email,password,setShowGallery}) => {
         "https://res.cloudinary.com/drctt42py/image/upload/v1728644225/chatapp-avatars/11_tyatgy.png"
     ]
 
-    const { publicKey, privateKey } = forge.pki.rsa.generateKeyPair({
-        bits: 2048,
-        e: 0x10001,
-    });
-    const publicKeyPem = forge.pki.publicKeyToPem(publicKey);
-    const privateKeyPem = forge.pki.privateKeyToPem(privateKey);
-
-    const handleRegister = async () => {
-        try {
-            const { data } = await axios.post(`${import.meta.env.VITE_FIREBASE_SERVER_URL}/api/v1/user/create`, {
-                username,
-                email,
-                password,
-                photoURL: avatars[selectedAvatar],
-                publicKey: publicKeyPem,
-                privateKey: privateKeyPem
-            })
-            setShowGallery(false);
-        } catch (error) {
-            console.log(error);
-        }
+    const selectAvatar = () => {
+        setAvatar(avatars[selectedAvatar]);
+        setShowGallery(false);
     }
 
     return (
-        <div className='absolute inset-0 flex justify-center items-center'>
+        <div className='absolute inset-0 z-[10] flex justify-center items-center'>
             <div className='md:w-[70%] md:h-auto lg:w-[50%] lg:h-auto bg-[#09090b] border border-[#7FFFAB] border-dashed p-5 rounded-xl flex flex-col justify-center gap-8'>
                 <span className='text-[#7FFFAB] text-2xl font-bold text-center'>Choose Your Avatar</span>
                 <div className='grid grid-cols-4 gap-8 pb-5'>
@@ -64,7 +48,7 @@ export const Gallery = ({username,email,password,setShowGallery}) => {
                     })
                     }
                 </div>
-                <button className='bg-[#7FFFAB] text-[#09090b] p-2 rounded-md' onClick={handleRegister}>Select Avatar</button>
+                <button className='bg-[#7FFFAB] text-[#09090b] p-2 rounded-md' onClick={selectAvatar}>Select Avatar</button>
             </div>
         </div>
     )

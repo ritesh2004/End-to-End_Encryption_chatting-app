@@ -1,8 +1,12 @@
 import axios from 'axios';
 import React, { useContext, useState } from 'react'
 import AuthContext from '../context/Authcontext';
+import Appcontext from '../context/Appcontext';
 
-export const Login = ({setShowSignUp,setShowLogin}) => {
+export const Login = () => {
+
+    const { setShowLogin,setShowSignup } = useContext(Appcontext);
+
     const [usernameOrEmail,setUsernameOrEmail] = useState('');
     const [password,setPassword] = useState('');
     const [error, setError] = useState('');
@@ -39,7 +43,8 @@ export const Login = ({setShowSignUp,setShowLogin}) => {
                     <button className='bg-[#7FFFAB] text-[#09090b] p-2 rounded-md' onClick={handleLogin}>Log In</button>
                     <div className='flex items-center justify-between'>
                         <span className='text-[#7FFFAB]'>Don't have an account?</span>
-                        <a href='#' className='text-[#7FFFAB]' onClick={()=>setShowSignUp(true)}>Create Account</a>
+                        <button className='text-[#7FFFAB]' onClick={()=>{setShowSignup(true)
+                        setShowLogin(false)}}>Create Account</button>
                     </div>
                 </div>
             </div>
