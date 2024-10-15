@@ -104,15 +104,15 @@ const login = (req, res) => {
                     .status(200)
                     .cookie("refreshToken", refreshToken, {
                       httpOnly: true,
-                      secure: true,
-                      sameSite: "none",
                       maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days
+                      sameSite : process.env.NODE_ENV === "Development" ? "lax" : "none",
+                      secure : process.env.NODE_ENV === "Development" ? false : true
                     })
                     .cookie("accessToken", accessToken, {
                       httpOnly: true,
-                      secure: true,
-                      sameSite: "none",
                       maxAge: 60 * 15 * 1000, // 15 minutes
+                      sameSite : process.env.NODE_ENV === "Development" ? "lax" : "none",
+                      secure : process.env.NODE_ENV === "Development" ? false : true
                     })
                     .json({ message: "Login successful", user: resultObj });
                 }
