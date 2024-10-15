@@ -5,7 +5,7 @@ const {
   generateRefreshToken,
 } = require("../utils/generateTokens");
 const verify = require("../middleware/verify.middleware");
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 
 const createUser = (req, res) => {
   try {
