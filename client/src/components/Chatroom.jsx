@@ -329,7 +329,7 @@ export const Chatroom = ({ socket, recipaent }) => {
         <div ref={endofMessages}></div>
       </div>
 
-      <div className="bg-[#282828] w-[90%] md:w-[57%] lg:w-[42%] xl:w-[48%] h-[64px] rounded-lg flex flex-row gap-5 items-center px-5 fixed bottom-5">
+      <div className="bg-[#282828] w-[90%] md:w-[58%] lg:w-[55%] xl:w-[51.5%] h-[64px] rounded-lg flex flex-row gap-5 items-center px-5 fixed bottom-5">
         <input
           className="w-[90%] rounded-lg h-[46px] bg-[#3C3C3C] px-5 text-[#7FFFAB] font-mont"
           type="text"
