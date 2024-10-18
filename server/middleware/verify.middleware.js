@@ -1,29 +1,37 @@
 const jwt = require('jsonwebtoken');
-const db = require('../database/db');
+const pool = require('../database/db');
 
-const verify = (req, res, next) => {
-    const {refreshToken} = req.cookies;
-    // console.log(refreshToken);
-    if (!refreshToken) return res.status(401).json({message: "Access Denied"});
-    if (refreshToken){
-        try {
-            const {id} = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-            db.query('USE chatdb');
-            db.query('SELECT * FROM users WHERE id = ?', [id], (error, results) => {
-                if (error) {
-                    return res.status(500).json({message: error.message});
-                } else {
-                    const userObj = Object.assign({}, results[0]);
-                    // console.log(userObj);
-                    req.user = userObj;
-                    next();
-                }
-            });
-        } catch (error) {
-            res.status(400).json({message: "Invalid Token"});
-        }
+const verify = async (req, res, next) => {
+  const { refreshToken } = req.cookies;
+  let connection;
+
+  if (!refreshToken) {
+    return res.status(401).json({ message: "Access Denied" });
+  }
+
+  try {
+    const { id } = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+    
+    connection = await pool.promise().getConnection();
+    await connection.query('USE chatdb');
+    
+    const [results] = await connection.query('SELECT * FROM users WHERE id = ?', [id]);
+    
+    if (results.length === 0) {
+      return res.status(404).json({ message: "User not found" });
     }
-}
 
+    req.user = results[0];
+    next();
+  } catch (error) {
+    console.error('Error in verify middleware:', error);
+    if (error instanceof jwt.JsonWebTokenError) {
+      return res.status(401).json({ message: "Invalid Token" });
+    }
+    return res.status(500).json({ message: "Internal server error" });
+  } finally {
+    if (connection) connection.release();
+  }
+};
 
 module.exports = verify;

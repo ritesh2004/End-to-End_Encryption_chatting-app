@@ -310,7 +310,7 @@ export const Home = () => {
                 photoURL={user?.photoURL}
                 name={user.username}
                 id={user.id}
-                lastmsg={user.lastmsg}
+                lastseen={user.lastseen}
                 status={status}
               />
             </div>

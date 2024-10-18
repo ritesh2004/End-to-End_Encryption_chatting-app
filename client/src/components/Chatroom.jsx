@@ -202,8 +202,8 @@ export const Chatroom = ({ socket, recipaent }) => {
         withCredentials: true,
       }
     );
-    editLastmsg(user.id,message);
-    editLastmsg(recipaent.id,message);
+    // editLastmsg(user.id,message);
+    // editLastmsg(recipaent.id,message);
     setAllMessages((prev) => [...prev, { message, recipaent }]);
     setMessage("");
   };

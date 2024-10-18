@@ -1,4 +1,4 @@
-const db = require("../database/db");
+const pool = require("../database/db");
 const jwt = require("jsonwebtoken");
 const {
   generateAccessToken,
@@ -7,153 +7,131 @@ const {
 const verify = require("../middleware/verify.middleware");
 const bcrypt = require("bcryptjs");
 
-const createUser = (req, res) => {
+const createUser = async (req, res) => {
+  let connection;
   try {
-    const { username, email, password, photoURL, publicKey,privateKey } = req.body;
-    let resultObj;
+    const { username, email, password, photoURL, publicKey, privateKey } = req.body;
+
     if (!username || !email || !password || !photoURL || !publicKey || !privateKey) {
       return res.status(400).json({ message: "Please fill in all fields" });
     }
-    const encryptedPassword = bcrypt.hashSync(password, 10);
-    db.query("USE chatdb");
-    db.query(
+
+    connection = await pool.promise().getConnection();
+    await connection.query("USE chatdb");
+
+    const [existingUsers] = await connection.query(
       "SELECT * FROM users WHERE email = ?",
-      [email],
-      (error, results) => {
-        if (error) {
-          console.log(error);
-          return res.status(500).json({ message: error.message });
-        } else if (results.length > 0) {
-          login(req, res);
-        } else {
-          const timestamp = new Date()
-            .toISOString()
-            .slice(0, 19)
-            .replace("T", " ");
-          db.query("USE chatdb");
-          db.query(
-            "INSERT INTO users(username,password,email,createdAt,photoURL,publicKey,privateKey) VALUES(?,?,?,?,?,?,?)",
-            [username, encryptedPassword, email, timestamp, photoURL, publicKey, privateKey],
-            (error, results) => {
-              if (error) {
-                console.log(error);
-                return res.status(500).json({ message: error.message });
-              } else {
-                // console.log(results);
-                db.query(
-                  "SELECT * FROM users WHERE email = ?",
-                  [email],
-                  (error, results) => {
-                    if (error) {
-                      console.log(error);
-                      return res.status(500).json({ message: error.message });
-                    } else {
-                      resultObj = Object.assign({}, results[0]);
-                      return res
-                        .status(200)
-                        .json({
-                          message: "User created successfully",
-                          user: resultObj,
-                        });
-                    }
-                  }
-                );
-              }
-            }
-          );
-        }
-      }
+      [email]
     );
+
+    if (existingUsers.length > 0) {
+      return login(req, res);
+    }
+
+    const encryptedPassword = bcrypt.hashSync(password, 10);
+    const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
+
+    await connection.query(
+      "INSERT INTO users(username,password,email,createdAt,photoURL,publicKey,privateKey) VALUES(?,?,?,?,?,?,?)",
+      [username, encryptedPassword, email, timestamp, photoURL, publicKey, privateKey]
+    );
+
+    const [newUser] = await connection.query(
+      "SELECT * FROM users WHERE email = ?",
+      [email]
+    );
+
+    return res.status(200).json({
+      message: "User created successfully",
+      user: newUser[0],
+    });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    console.error('Error in createUser:', error);
+    return res.status(500).json({ message: "Internal server error" });
+  } finally {
+    if (connection) connection.release();
   }
 };
 
-const login = (req, res) => {
+const login = async (req, res) => {
+  let connection;
   try {
-    console.log(req.body);
     const { user, password } = req.body;
-    let resultObj;
+
     if (!user || !password) {
       return res.status(400).json({ message: "Please fill in all fields" });
     }
-    db.query("USE chatdb");
-    db.query(
-      "SELECT password FROM users WHERE username = ? OR email = ?",
-      [user,user],
-      (error, results) => {
-        if (error) {
-          console.log(error);
-          return res.status(500).json({ message: error.message });
-        } else {
-          if (results.length > 0) {
-            resultObj = Object.assign({}, results[0]);
-            // console.log(resultObj)
-            const isPasswordCorrect = bcrypt.compareSync(password,resultObj.password);
-            console.log(isPasswordCorrect)
-            if (isPasswordCorrect){
-              db.query("USE chatdb");
-              db.query(
-                "SELECT id,username,email,photoURL,socketId,publicKey,privateKey FROM users WHERE username = ? OR email = ?",[user,user],
-                (err, result) => {
-                  resultObj = Object.assign({}, result[0]);
-                  const accessToken = generateAccessToken(resultObj);
-                  const refreshToken = generateRefreshToken(resultObj);
-      
-                  return res
-                    .status(200)
-                    .cookie("refreshToken", refreshToken, {
-                      httpOnly: true,
-                      maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days
-                      sameSite : process.env.NODE_ENV === "Development" ? "lax" : "none",
-                      secure : process.env.NODE_ENV === "Development" ? false : true
-                    })
-                    .cookie("accessToken", accessToken, {
-                      httpOnly: true,
-                      maxAge: 60 * 15 * 1000, // 15 minutes
-                      sameSite : process.env.NODE_ENV === "Development" ? "lax" : "none",
-                      secure : process.env.NODE_ENV === "Development" ? false : true
-                    })
-                    .json({ message: "Login successful", user: resultObj });
-                }
-              )
-            }
-            else {
-              return res.status(401).json({ message: "Incorrect Password" })
-            }
-          } else {
-            return res.status(404).json({ message: "User not found" });
-          }
-        }
-      }
+
+    connection = await pool.promise().getConnection();
+    await connection.query("USE chatdb");
+
+    const [results] = await connection.query(
+      "SELECT * FROM users WHERE username = ? OR email = ?",
+      [user, user]
     );
+
+    if (results.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const isPasswordCorrect = bcrypt.compareSync(password, results[0].password);
+
+    if (!isPasswordCorrect) {
+      return res.status(401).json({ message: "Incorrect password" });
+    }
+
+    const { id, username, email, photoURL, socketId, publicKey, privateKey } = results[0];
+    const userData = { id, username, email, photoURL, socketId, publicKey, privateKey };
+
+    const accessToken = generateAccessToken(userData);
+    const refreshToken = generateRefreshToken(userData);
+
+    return res
+      .status(200)
+      .cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days
+        sameSite: process.env.NODE_ENV === "Development" ? "lax" : "none",
+        secure: process.env.NODE_ENV === "Development" ? false : true
+      })
+      .cookie("accessToken", accessToken, {
+        httpOnly: true,
+        maxAge: 60 * 15 * 1000, // 15 minutes
+        sameSite: process.env.NODE_ENV === "Development" ? "lax" : "none",
+        secure: process.env.NODE_ENV === "Development" ? false : true
+      })
+      .json({ message: "Login successful", user: userData });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    console.error('Error in login:', error);
+    return res.status(500).json({ message: "Internal server error" });
+  } finally {
+    if (connection) connection.release();
   }
 };
 
-const checkUsernameEmail = (req, res) => {
+const checkUsernameEmail = async (req, res) => {
+  let connection;
   try {
-    const { username,email } = req.body;
-    db.query("USE chatdb");
-    db.query(
+    const { username, email } = req.body;
+    
+    connection = await pool.promise().getConnection();
+    await connection.query("USE chatdb");
+    
+    const [results] = await connection.query(
       "SELECT * FROM users WHERE username = ? OR email = ?",
-      [username,email],
-      (error, results) => {
-        if (error) {
-          console.log(error);
-          return res.status(500).json({ message: error.message });
-        } else {
-          if (results.length > 0) {
-            return res.status(400).json({ message: "Username and email exists" });
-          } else {
-            return res.status(200).json({ message: "Username and email not found" });
-          }
-        }
-      }
+      [username, email]
     );
+
+    if (results.length > 0) {
+      return res.status(400).json({ message: "Username or email already exists" });
+    } else {
+      return res.status(200).json({ message: "Username and email are available" });
+    }
   } catch (error) {
-    return res.status(500).json({ message: error.message });  
+    console.error('Error in checkUsernameEmail:', error);
+    return res.status(500).json({ message: "Internal server error" });
+  } finally {
+    if (connection) connection.release();
   }
 };
 
@@ -161,184 +139,204 @@ const verifyMe = (req, res) => {
   try {
     return res.status(200).json({ message: "User verified", user: req.user });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    console.error('Error in verifyMe:', error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 
-const getAllUsers = (req, res) => {
+const getAllUsers = async (req, res) => {
+  let connection;
   try {
-    const user = req.user
-    db.query("USE chatdb");
-    db.query("SELECT id,username,email,socketId,publicKey,photoURL,lastmsg FROM users WHERE id <> ?",[user?.id], (error, results) => {
-      if (error) {
-        console.log(error);
-        return res.status(500).json({ message: error.message });
-      } else {
-        let users = [];
-        // const resultObj = Object.assign({}, results[0]);
-        // console.log(results);
-        // console.log(results.length);
-        for (let i = 0; i < results.length; i++) {
-          users.push(Object.assign({}, results[i]));
-        }
-        return res
-          .status(200)
-          .json({ message: "Users retrieved successfully", users });
-      }
+    const user = req.user;
+    
+    connection = await pool.promise().getConnection();
+    await connection.query("USE chatdb");
+    
+    const [results] = await connection.query(
+      "SELECT id, username, email, socketId, publicKey, photoURL, lastseen FROM users WHERE id <> ?",
+      [user?.id]
+    );
+
+    return res.status(200).json({ 
+      message: "Users retrieved successfully", 
+      users: results 
     });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    console.error('Error in getAllUsers:', error);
+    return res.status(500).json({ message: "Internal server error" });
+  } finally {
+    if (connection) connection.release();
   }
 };
 
-const updateSocketId = (req, res) => {
+const updateSocketId = async (req, res) => {
+  let connection;
   try {
     const { socketId } = req.body;
     const { id } = req.user;
-    db.query("USE chatdb");
-    db.query(
+    
+    connection = await pool.promise().getConnection();
+    await connection.query("USE chatdb");
+    
+    await connection.query(
       "UPDATE users SET socketId = ? WHERE id = ?",
-      [socketId, id],
-      (error, results) => {
-        if (error) {
-          console.log(error);
-          return res.status(500).json({ message: error.message });
-        } else {
-          return res
-            .status(200)
-            .json({ message: "Socket ID updated successfully" });
-        }
-      }
+      [socketId, id]
     );
+
+    return res.status(200).json({ message: "Socket ID updated successfully" });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    console.error('Error in updateSocketId:', error);
+    return res.status(500).json({ message: "Internal server error" });
+  } finally {
+    if (connection) connection.release();
   }
 };
 
-const updatePublicKey = (req, res) => {
+const updatePublicKey = async (req, res) => {
+  let connection;
   try {
     const { publickey } = req.body;
-    // console.log(publickey);
     const { id } = req.user;
-    db.query("USE chatdb");
-    db.query(
-      "UPDATE users SET secret = ? WHERE id = ?",
-      [publickey, id],
-      (error, results) => {
-        if (error) {
-          console.log(error);
-          return res.status(500).json({ message: error.message });
-        } else {
-          return res
-            .status(200)
-            .json({ message: "Publick Key updated successfully" });
-        }
-      }
+    
+    connection = await pool.promise().getConnection();
+    await connection.query("USE chatdb");
+    
+    await connection.query(
+      "UPDATE users SET publicKey = ? WHERE id = ?",
+      [publickey, id]
     );
+
+    return res.status(200).json({ message: "Public Key updated successfully" });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    console.error('Error in updatePublicKey:', error);
+    return res.status(500).json({ message: "Internal server error" });
+  } finally {
+    if (connection) connection.release();
   }
 };
 
-const getUser = (id) => {
+const getUser = async (id) => {
+  let connection;
   try {
-    db.query("USE chatdb");
-    db.query("SELECT * FROM users WHERE id = ?", [id], (error, results) => {
-      if (error) {
-        console.log(error);
-        return null;
-      } else {
-        // console.log(Object.assign({}, results[0]))
-        const user = Object.assign({}, results[0]);
-        console.log(user.socketId);
-        return user.socketId;
-      }
-    });
-  } catch (error) {
-    return null;
-  }
-}
+    connection = await pool.promise().getConnection();
+    await connection.query("USE chatdb");
+    
+    const [results] = await connection.query(
+      "SELECT * FROM users WHERE id = ?", 
+      [id]
+    );
 
-const getUserSecret = (req,res) => {
+    if (results.length === 0) {
+      return null;
+    }
+
+    return results[0].socketId;
+  } catch (error) {
+    console.error('Error in getUser:', error);
+    return null;
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
+const getUserSecret = async (req, res) => {
+  let connection;
   try {
     const { id } = req.params;
-    db.query("USE chatdb");
-    db.query("SELECT publicKey,email FROM users WHERE id = ?", [id], (error, results) => {
-      if (error) {
-        console.log(error);
-        return null;
-      } else {
-        // console.log(Object.assign({}, results[0]))
-        const user = Object.assign({}, results[0]);
-        return res
-          .status(200)
-          .json({ message: "Secret retrieved successfully", user });
-      }
+    
+    connection = await pool.promise().getConnection();
+    await connection.query("USE chatdb");
+    
+    const [results] = await connection.query(
+      "SELECT publicKey, email FROM users WHERE id = ?", 
+      [id]
+    );
+
+    if (results.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.status(200).json({ 
+      message: "Secret retrieved successfully", 
+      user: results[0] 
     });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    console.error('Error in getUserSecret:', error);
+    return res.status(500).json({ message: "Internal server error" });
+  } finally {
+    if (connection) connection.release();
   }
-}
+};
 
-const editProfile = (req,res) => {
+const editProfile = async (req, res) => {
+  let connection;
   try {
     const { id } = req.user;
     const { username, email, photoURL } = req.body;
-    db.query("USE chatdb");
-    db.query(
+    
+    connection = await pool.promise().getConnection();
+    await connection.query("USE chatdb");
+    
+    await connection.query(
       "UPDATE users SET username = ?, email = ?, photoURL = ? WHERE id = ?",
-      [username, email, photoURL, id],
-      (error, results) => {
-        if (error) {
-          console.log(error);
-          return res.status(500).json({ message: error.message });
-        } else {
-          return res
-            .status(200)
-            .json({ message: "Profile updated successfully", user: req.user });
-        }
-      }
+      [username, email, photoURL, id]
     );
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
-}
 
-const editLastmsg = (req,res) => {
+    return res.status(200).json({ 
+      message: "Profile updated successfully", 
+      user: { ...req.user, username, email, photoURL } 
+    });
+  } catch (error) {
+    console.error('Error in editProfile:', error);
+    return res.status(500).json({ message: "Internal server error" });
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
+const editLastmsg = async (req, res) => {
+  let connection;
   try {
     const { id } = req.params;
     const { lastmsg } = req.body;
-    db.query("USE chatdb");
-    db.query(
+    
+    connection = await pool.promise().getConnection();
+    await connection.query("USE chatdb");
+    
+    await connection.query(
       "UPDATE users SET lastmsg = ? WHERE id = ?",
-      [lastmsg, id],
-      (error, results) => {
-        if (error) {
-          console.log(error);
-          return res.status(500).json({ message: error.message });
-        } else {
-          return res
-            .status(200)
-            .json({ message: "Last message updated successfully" });
-        }
-      }
+      [lastmsg, id]
     );
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
-}
 
-const logout = (req,res) => {
+    return res.status(200).json({ message: "Last message updated successfully" });
+  } catch (error) {
+    console.error('Error in editLastmsg:', error);
+    return res.status(500).json({ message: "Internal server error" });
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
+const logout = (req, res) => {
   try {
     return res
       .status(200)
-      .clearCookie("refreshToken")
-      .clearCookie("accessToken")
+      .clearCookie("refreshToken",{
+        httpOnly: true,
+        sameSite: process.env.NODE_ENV === "Development" ? "lax" : "none",
+        secure: process.env.NODE_ENV === "Development" ? false : true
+      })
+      .clearCookie("accessToken",{
+        httpOnly: true,
+        sameSite: process.env.NODE_ENV === "Development" ? "lax" : "none",
+        secure: process.env.NODE_ENV === "Development" ? false : true
+      })
       .json({ message: "Logout successful" });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    console.error('Error in logout:', error);
+    return res.status(500).json({ message: "Internal server error" });
   }
-}
+};
 
 module.exports = {
   createUser,
