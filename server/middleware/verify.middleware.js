@@ -2,7 +2,11 @@ const jwt = require('jsonwebtoken');
 const pool = require('../database/db');
 
 const verify = async (req, res, next) => {
-  const { refreshToken } = req.cookies;
+  let refreshToken;
+  const AuthHeader = req.headers['authorization'];
+  refreshToken = AuthHeader && AuthHeader.split(' ')[1];
+  refreshToken = req.cookies.refreshToken || refreshToken;
+  // console.log(refreshToken);
   let connection;
 
   if (!refreshToken) {

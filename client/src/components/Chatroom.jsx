@@ -202,6 +202,19 @@ export const Chatroom = ({ socket, recipaent }) => {
         withCredentials: true,
       }
     );
+
+    // Send notification
+    await axios.post(
+      `${import.meta.env.VITE_FIREBASE_SERVER_URL}/api/v1/notification/send-notification`,
+      {
+        userId: (recipaent.id).toString(),
+        title: `${user.username} texted you`,
+        body: message
+      },
+      {
+        withCredentials: true
+      }
+    )
     // editLastmsg(user.id,message);
     // editLastmsg(recipaent.id,message);
     setAllMessages((prev) => [...prev, { message, recipaent }]);

@@ -3,6 +3,7 @@ const dotenv = require("dotenv");
 const pool = require("./database/db");
 const userRouter = require("./routes/users.routes");
 const chatRouter = require("./routes/chats.routes");
+const notificationRouter = require("./routes/notification.routes");
 const cookieParser = require("cookie-parser");
 const { Server } = require("socket.io");
 const http = require("http");
@@ -46,10 +47,17 @@ app.use(
     methods: ["GET", "POST"],
   })
 );
+
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
+})
+
 app.use(express.json());
 app.use(cookieParser());
 app.use("/api/v1", userRouter);
 app.use("/api/v1", chatRouter);
+app.use("/api/v1", notificationRouter);
 
 app.get("/",(req,res)=>{
   res.send("Hello")
@@ -110,6 +118,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("send-message", async (msg) => {
+    console.log("Message: ", msg);
     let connection;
     try {
       connection = await pool.promise().getConnection();

@@ -3,9 +3,12 @@ const jwt = require("jsonwebtoken");
 const {
   generateAccessToken,
   generateRefreshToken,
+  getAccessToken,
 } = require("../utils/generateTokens");
 const verify = require("../middleware/verify.middleware");
 const bcrypt = require("bcryptjs");
+const forge = require("node-forge");
+const dayjs = require("dayjs");
 
 const createUser = async (req, res) => {
   let connection;
@@ -54,6 +57,7 @@ const createUser = async (req, res) => {
 };
 
 const login = async (req, res) => {
+  console.log('login');
   let connection;
   try {
     const { user, password } = req.body;
@@ -100,7 +104,7 @@ const login = async (req, res) => {
         sameSite: process.env.NODE_ENV === "Development" ? "lax" : "none",
         secure: process.env.NODE_ENV === "Development" ? false : true
       })
-      .json({ message: "Login successful", user: userData });
+      .json({ message: "Login successful", user: userData, refreshToken, accessToken });
   } catch (error) {
     console.error('Error in login:', error);
     return res.status(500).json({ message: "Internal server error" });
@@ -338,6 +342,92 @@ const logout = (req, res) => {
   }
 };
 
+const storeBiometricData = async (req, res) => {
+  let connection;
+  try {
+    const { id } = req.user;
+    const { publicKey } = req.body;
+
+    connection = await pool.promise().getConnection();
+    await connection.query("USE chatdb");
+    await connection.query(
+      "UPDATE users SET biometricData = ? WHERE id = ?",
+      [publicKey, id]
+    );
+
+    return res.status(200).json({ message: "Biometric data stored successfully" });
+  } catch (error) {
+    console.error('Error in storeBiometricData:', error);
+    return res.status(500).json({ message: "Internal server error" });
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
+const verifyBiometricData = async (req, res) => {
+  let connection;
+  try {
+    const { signature, payload } = req.body;
+
+    console.log('payload:', payload);
+
+    connection = await pool.promise().getConnection();
+    await connection.query("USE chatdb");
+
+    const [results] = await connection.query(
+      "SELECT * FROM users WHERE id = ?",
+      [payload.user]
+    );
+
+
+    if (results.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    console.log("Validating signature with biometric key...");
+    const publicKeyPem = results[0].biometricData;
+    const publicKey = forge.pki.publicKeyFromPem(publicKeyPem);
+    const md = forge.md.sha256.create();
+    md.update(JSON.stringify(payload), "utf8");
+    const decodedSignature = forge.util.decode64(signature);
+    const isValid = publicKey.verify(md.digest().bytes(), decodedSignature);
+    console.log('decodedSignature:', decodedSignature);
+    console.log('isValid:', isValid);
+    
+    if (!isValid) {
+      return res.status(401).json({ message: "Invalid signature" });
+    }
+
+    if (dayjs().diff(dayjs(payload.iat * 1000), 'minute') > 10) {
+      return res.status(401).json({ message: "Signature expired" });
+    }
+    console.log("Signature validated successfully");
+    console.log("Generating tokens...");
+    console.log("Returning user data with tokens...");
+    const { id, username, email, photoURL, socketId, publicKey: userPublicKey, privateKey } = results[0];
+    const userData = { id, username, email, photoURL, socketId, publicKey: userPublicKey, privateKey };
+    const accessToken = generateAccessToken({ id, username, email});
+    const refreshToken = generateRefreshToken({ id, username, email});
+    return res
+      .status(200)
+      .cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        sameSite: process.env.NODE_ENV === "Development" ? "lax" : "none",
+        secure: process.env.NODE_ENV === "Development" ? false : true
+      })
+      .cookie("accessToken", accessToken, {
+        httpOnly: true,
+        sameSite: process.env.NODE_ENV === "Development" ? "lax" : "none",
+        secure: process.env.NODE_ENV === "Development" ? false : true
+      })
+      .json({ message: "Biometric verification successful", accessToken, refreshToken, user: userData });
+  } catch (error) {
+    console.error('Error in verifyBiometricData:', error);
+    return res.status(500).json({ message: "Internal server error" });
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
 module.exports = {
   createUser,
   login,
@@ -350,5 +440,7 @@ module.exports = {
   editProfile,
   editLastmsg,
   logout,
-  checkUsernameEmail
+  checkUsernameEmail,
+  storeBiometricData,
+  verifyBiometricData
 };

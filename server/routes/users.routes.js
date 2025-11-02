@@ -1,5 +1,5 @@
 const {Router} = require('express');
-const {createUser, login, verifyMe, getAllUsers, updateSocketId, updatePublicKey, getUserSecret, editProfile, editLastmsg, logout, checkUsernameEmail} = require('../controllers/users.controller');
+const {createUser, login, verifyMe, getAllUsers, updateSocketId, updatePublicKey, getUserSecret, editProfile, editLastmsg, logout, checkUsernameEmail, storeBiometricData, verifyBiometricData} = require('../controllers/users.controller');
 const verify = require('../middleware/verify.middleware');
 
 const userRouter = Router();
@@ -25,5 +25,9 @@ userRouter.post('/user/edit/profile', verify, editProfile);
 userRouter.post('/user/edit/lastmsg/:id', verify, editLastmsg);
 
 userRouter.get('/user/logout', verify, logout);
+
+userRouter.post('/user/biometric/store', verify, storeBiometricData);
+
+userRouter.post('/user/biometric/verify', verifyBiometricData);
 
 module.exports = userRouter;
