@@ -156,11 +156,11 @@ io.on("connection", async (socket) => {
     let connection;
     try {
       connection = await pool.promise().getConnection();
-      await storeMessage(socket.userID, to?.id, message);
-
+      const result = await storeMessage(socket.userID, to?.id, message);
+      io.to(socket.id).emit("message-sent", {chatTime: result?.chatTime});
       const recipientSocketId = userMap.get(String(to.id));
       if (recipientSocketId) {
-        io.to(recipientSocketId).emit("receive-message", {message, to, from: socket.userID});
+        io.to(recipientSocketId).emit("receive-message", {message, to, from: socket.userID, chatTime: result?.chatTime});
       }
     } catch (error) {
       console.error('Error in send-message handler:', error);

@@ -19,12 +19,12 @@ const storeMessage = async (senderId, receiverId, message) => {
     connection = await pool.promise().getConnection();
     await connection.query("USE chatdb");
 
-    await connection.query(
+    const result = await connection.query(
       "INSERT INTO chats (from_id, to_id, message) VALUES (?, ?, ?)",
       [senderId, receiverId, message]
     );
 
-    return { message: "Chat created successfully" };
+    return { message: "Chat created successfully", chatTime: result[0].message_time };
   } catch (error) {
     console.error('Error in createChat:', error);
     throw new Error("Internal server error");
