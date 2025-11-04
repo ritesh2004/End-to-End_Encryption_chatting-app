@@ -23,14 +23,15 @@ export const Home = () => {
   const [users, setUsers] = useState([]);
   const [recipaent, setRecipaent] = useState();
   const [socket, setSocket] = useState();
-  const [status, setStatus] = useState();
+  const [onlineUsers, setOnlineUsers] = useState([]);
+  const [hasUnseen, setHasUnseen] = useState({});
 
   const { showLogin, setShowLogin, showSignup, setShowSignup, showGallery, setShowGallery, showEdit, setShowEdit } = useContext(Appcontext);
 
   const [avatar, setAvatar] = useState(null);
 
-  const [name,setName] = useState(user?.fullname);
-  const [image,setImage] = useState();
+  const [name, setName] = useState(user?.fullname);
+  const [image, setImage] = useState();
 
   const login = async () => {
     try {
@@ -83,15 +84,15 @@ export const Home = () => {
   };
 
   const uploadImage = async () => {
-    try{
+    try {
       const formData = new FormData();
-      formData.append("file",image);
+      formData.append("file", image);
       formData.append("cloud_name", "drctt42py");
       formData.append("upload_preset", "rpBucket");
-      const { data } = await axios.post("https://api.cloudinary.com/v1_1/drctt42py/image/upload",formData);
+      const { data } = await axios.post("https://api.cloudinary.com/v1_1/drctt42py/image/upload", formData);
       return data?.url;
     }
-    catch(error){
+    catch (error) {
       console.log(error)
     }
   }
@@ -105,10 +106,10 @@ export const Home = () => {
         `${import.meta.env.VITE_FIREBASE_SERVER_URL}/api/v1/user/edit/profile`,
         {
           name,
-          photoURL:imgUrl
+          photoURL: imgUrl
         },
         {
-          withCredentials : true
+          withCredentials: true
         }
       );
       // console.log(data)
@@ -170,46 +171,100 @@ export const Home = () => {
     getUser();
   }, []);
 
+  // When user logs in fetch users and ensure socket is connected
   useEffect(() => {
+    if (!user) return;
+    // fetch user list by REST (fallback) and ensure socket reconnects so server can authenticate socket
     getAllUsers();
-  }, [user]);
+    if (socket && !socket.connected) {
+      socket.connect();
+    }
+  }, [user, socket]);
 
-  useEffect(()=>{
-    if (!socket && !user) return;
-    socket.emit("status",user?.id);
-  },[user])
+  // useEffect(()=>{
+  //   if (!socket && !user) return;
+  //   socket.emit("status",user?.id);
+  // },[user])
 
   // Handling socket io
   // client-side
   useEffect(() => {
-    const newSocket = io(import.meta.env.VITE_FIREBASE_SERVER_URL);
+    const newSocket = io(import.meta.env.VITE_FIREBASE_SERVER_URL, {
+      autoConnect: false,
+      withCredentials: true,
+      // force use of websocket transport to avoid engine.io polling session reuse errors
+      transports: ["websocket"],
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
     setSocket(newSocket);
 
-    return () => {
-      if (newSocket) {
-        newSocket.disconnect();
+    const onConnect = () => {
+      console.log("socket connected", newSocket.id);
+      if (newSocket.id) updateSocketId(newSocket.id);
+    };
+    const onUsers = (data) => {
+      // server may send either an array or { users: [] }
+      if (Array.isArray(data)) {
+        setUsers(data);
+      } else if (Array.isArray(data?.users)) {
+        setUsers(data.users);
+      } else {
+        setUsers([]);
       }
+    };
+    const onStatus = (data) => {
+      // server sends full array -> normalize IDs to string and replace state
+      if (Array.isArray(data)) {
+        setOnlineUsers(data.map((id) => String(id)));
+      } else {
+        setOnlineUsers([]);
+      }
+    };
+    const onReceiveMessage = (payload) => {
+      // payload: { message, from, to }
+      const fromId = String(payload.from);
+      // if open chat is with sender, don't mark unseen
+      if (recipaent && String(recipaent.id) === fromId) return;
+      setHasUnseen(prev => ({ ...prev, [fromId]: true }));
+    };
+    const onUserConnected = ({ id }) => {
+      console.log("User connected:", id);
+      setOnlineUsers((prev) => [...prev, String(id)]);
+    };
+    const onConnectError = (err) => {
+      console.warn("socket connect_error", err);
+    };
+
+    newSocket.on("connect", onConnect);
+    newSocket.on("users", onUsers);
+    newSocket.on("status", onStatus);
+    newSocket.on("receive-message", onReceiveMessage);
+    newSocket.on("user-connected", onUserConnected);
+    newSocket.on("connect_error", onConnectError);
+
+    // start connect attempt
+    newSocket.connect();
+
+    return () => {
+      newSocket.off("connect", onConnect);
+      newSocket.off("users", onUsers);
+      newSocket.off("status", onStatus);
+      newSocket.off("receive-message", onReceiveMessage);
+      newSocket.off("connect_error", onConnectError);
+      newSocket.disconnect();
     };
   }, []);
 
-  useEffect(() => {
-    if (!socket) return;
-
-    socket.on("connect", () => {
-      console.log("connected");
-      console.log(socket.id); // x8WIv7-mJelg7on_ALbx
-      updateSocketId(socket.id);
+  // clear unseen when selecting a recipient
+  const handleSelectRecipient = (user) => {
+    setRecipaent(user);
+    setHasUnseen(prev => {
+      const next = { ...prev };
+      delete next[String(user.id)];
+      return next;
     });
-
-    socket.on("status",(data) => {
-      // console.log(data)
-      setStatus(data)
-    })
-
-    socket.on("disconnect", () => {
-      console.log(socket.id); // undefined
-    });
-  }, [socket]);
+  };
 
   return (
     <div className="relative min-h-screen bg-[#090909] pt-5">
@@ -295,7 +350,7 @@ export const Home = () => {
               </h2>
             )}
             <p className="text-[#99FFAF] font-mont font-medium text-sm">
-              {status?.includes(recipaent?.id) ? "Online" : "Offline"}
+              {onlineUsers?.includes(String(recipaent?.id)) ? "Online" : "Offline"}
             </p>
           </div>
         </div>
@@ -304,14 +359,15 @@ export const Home = () => {
       <div className="mx-auto w-[95%] md:w-[90%] lg:w-[86%] xl:w-[80%] border-2 border-[#202020] h-[calc(100vh-150px)] rounded-lg mt-5 flex flex-row md:divide-x-4 md:divide-[#1C1C1C] my-2">
         <div className="hidden md:h-auto md:overflow-y-auto md:block md:w-[320px] lg:w-1/3 md:flex md:flex-col md:px-2 md:py-2 md:gap-2">
           {users.map((user) => (
-            <div key={user.id} onClick={() => setRecipaent(user)}>
+            <div key={user.id} onClick={() => handleSelectRecipient(user)}>
               <Chat
                 key={user.id}
                 photoURL={user?.photoURL}
                 name={user.username}
                 id={user.id}
                 lastseen={user.lastseen}
-                status={status}
+                status={onlineUsers}
+                unseen={!!hasUnseen[String(user.id)]}
               />
             </div>
           ))}
@@ -360,7 +416,7 @@ export const Home = () => {
                 className="bg-transparent border border-[#7FFFAB] border-dashed text-white text-sm rounded-lg focus:ring-[#7FFFAB] focus:border-[#7FFFAB] block w-[60%] p-2.5"
                 placeholder="E.g. Jon Doe"
                 value={name}
-                onChange={(e)=>setName(e.target.value)}
+                onChange={(e) => setName(e.target.value)}
               />
             </div>
 
@@ -376,7 +432,7 @@ export const Home = () => {
                 id="helper-text"
                 aria-describedby="helper-text-explanation"
                 className="bg-transparent border border-[#7FFFAB] border-dashed text-white text-sm rounded-lg focus:ring-[#7FFFAB] focus:border-[#7FFFAB] block w-[60%] p-2.5"
-                onChange={(e)=>setImage(e.target.files[0])}
+                onChange={(e) => setImage(e.target.files[0])}
               />
             </div>
           </div>
@@ -393,7 +449,7 @@ export const Home = () => {
       {showSignup && <Signup />}
       {showGallery && <Gallery />}
       {/* <Editprofile/> */}
-      {showEdit && <Editprofile/>}
+      {showEdit && <Editprofile />}
     </div>
   );
 };

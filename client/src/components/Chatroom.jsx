@@ -64,15 +64,21 @@ export const Chatroom = ({ socket, recipaent }) => {
   }, [user, recipientPublicKey]);
 
   useEffect(() => {
-    if (!socket || !isReady) return;
+    if (!socket || !isReady || !recipaent || !recipaent.id) return;
 
-    const handleReceiveMessage = async (msg) => {
+    const handleReceiveMessage = async ({ message, to, from }) => {
+      console.log("Coming message from: ", from);
+      console.log("Room is opened for: ", recipaent);
       try {
-        const decryptedMessage = decryptMessage(msg.message, false);
+        if (!recipaent || String(from) !== String(recipaent.id)) return;
+
+        console.log("Received message:", message);
+        const decryptedMessage = decryptMessage(message, false);
+        console.log("Decrypted message:", decryptedMessage);
         if (decryptedMessage) {
           setAllMessages((prev) => [
             ...prev,
-            { message: decryptedMessage, recipaent: msg.recipaent },
+            { message: decryptedMessage, recipaent: to },
           ]);
         }
       } catch (error) {
@@ -85,7 +91,7 @@ export const Chatroom = ({ socket, recipaent }) => {
     return () => {
       socket.off("receive-message", handleReceiveMessage);
     };
-  }, [socket, isReady]);
+  }, [socket, isReady, recipaent]);
 
   useEffect(() => {
     scrollToBottom();
@@ -186,39 +192,45 @@ export const Chatroom = ({ socket, recipaent }) => {
       return;
     }
 
-    socket.emit("send-message", {
-      message: encryptedMessage,
-      recipaent,
-    });
-
-    const { data } = await axios.post(
-      `${import.meta.env.VITE_FIREBASE_SERVER_URL}/api/v1/chat/create`,
-      {
-        message: encryptedMessage,
-        receiverId: recipaent.id,
-        senderId: user.id,
-      },
-      {
-        withCredentials: true,
-      }
-    );
-
-    // Send notification
-    await axios.post(
-      `${import.meta.env.VITE_FIREBASE_SERVER_URL}/api/v1/notification/send-notification`,
-      {
-        userId: (recipaent.id).toString(),
-        title: `${user.username} texted you`,
-        body: message
-      },
-      {
-        withCredentials: true
-      }
-    )
-    // editLastmsg(user.id,message);
-    // editLastmsg(recipaent.id,message);
     setAllMessages((prev) => [...prev, { message, recipaent }]);
     setMessage("");
+
+    socket.emit("send-message", {
+      message: encryptedMessage,
+      to: recipaent,
+    });
+
+    // const { data } = await axios.post(
+    //   `${import.meta.env.VITE_FIREBASE_SERVER_URL}/api/v1/chat/create`,
+    //   {
+    //     message: encryptedMessage,
+    //     receiverId: recipaent.id,
+    //     senderId: user.id,
+    //   },
+    //   {
+    //     withCredentials: true,
+    //   }
+    // );
+
+    // Send notification
+    
+    try {
+      await axios.post(
+        `${import.meta.env.VITE_FIREBASE_SERVER_URL}/api/v1/notification/send-notification`,
+        {
+          userId: (recipaent.id).toString(),
+          title: `${user.username} texted you`,
+          body: message
+        },
+        {
+          withCredentials: true
+        }
+      )
+    } catch (error) {
+      console.log("Error sending notification:", error);
+    }
+    // editLastmsg(user.id,message);
+    // editLastmsg(recipaent.id,message);
   };
 
   useEffect(() => {
@@ -322,14 +334,14 @@ export const Chatroom = ({ socket, recipaent }) => {
               <div
                 key={index}
                 className={
-                  msg.recipaent.email === recipaent.email
+                  msg.recipaent?.email === recipaent?.email
                     ? "chat chat-end"
                     : "chat chat-start"
                 }
               >
                 <div
                   className={
-                    msg.recipaent.email === recipaent.email
+                    msg.recipaent?.email === recipaent?.email
                       ? "chat-bubble bg-[#036825] font-mont text-white"
                       : "chat-bubble bg-[#272727] font-mont text-white"
                   }

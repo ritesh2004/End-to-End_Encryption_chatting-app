@@ -157,7 +157,7 @@ const getAllUsers = async (req, res) => {
     await connection.query("USE chatdb");
     
     const [results] = await connection.query(
-      "SELECT id, username, email, socketId, publicKey, photoURL, lastseen FROM users WHERE id <> ?",
+      "SELECT id, username, email, socketId, publicKey, photoURL, lastseen FROM users WHERE id <> ? ORDER BY lastseen DESC",
       [user?.id]
     );
 

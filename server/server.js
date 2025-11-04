@@ -13,6 +13,9 @@ const crypto = require("crypto");
 const https = require("https");
 const fs = require("fs");
 const path = require("path");
+const verifySocket = require("./middleware/verifySocket.middleware");
+const { storeMessage } = require("./utils/storeMessage");
+const fetchUsers = require("./utils/sendAllUsers");
 dotenv.config("./.env");
 
 const app = express();
@@ -27,7 +30,7 @@ if (process.env.NODE_ENV === "production") {
     app
   );
 }
-else{
+else {
   server = http.createServer(app);
 }
 
@@ -59,7 +62,7 @@ app.use("/api/v1", userRouter);
 app.use("/api/v1", chatRouter);
 app.use("/api/v1", notificationRouter);
 
-app.get("/",(req,res)=>{
+app.get("/", (req, res) => {
   res.send("Hello")
 })
 
@@ -73,29 +76,60 @@ const io = new Server(server, {
   },
 });
 
-io.on("connection", (socket) => {
+io.use(verifySocket);
+
+let userMap = new Map(); // Map to store userID and socketID pairs
+
+io.on("connection", async (socket) => {
   console.log("User connected: ", socket.id);
+  let connection;
+
+  userMap.set(String(socket.userID), socket.id);
+
+  try {
+    connection = await pool.promise().getConnection();
+    await connection.query("USE chatdb");
+    await connection.query(
+      "UPDATE users SET socketId = ? WHERE id = ?",
+      [socket.id, socket.userID]
+    );
+    if (!onlineUsers.includes(String(socket.userID))) {
+      onlineUsers.push(String(socket.userID));
+    }
+    console.log("Onlined Users: ", onlineUsers);
+  } catch (error) {
+    console.error('Error in connection handler:', error);
+  }
+  finally {
+    if (connection) connection.release();
+  }
+
+  socket.emit("users", await fetchUsers(socket.userID));
+
+  io.emit("status", onlineUsers);
+
+  socket.broadcast.emit("user-connected", { id: socket.userID });
 
   socket.on("disconnect", async () => {
     console.log("User disconnected: ", socket.id);
-    let connection;
     try {
+      userMap.delete(String(socket.userID));
       connection = await pool.promise().getConnection();
       await connection.query("USE chatdb");
-      
+
       const [results] = await connection.query(
-        "SELECT id FROM users WHERE socketId = ?", 
+        "SELECT id FROM users WHERE socketId = ?",
         [socket.id]
       );
-      
+
       if (results.length > 0) {
         const userId = results[0].id;
-        onlineUsers = onlineUsers.filter(id => id !== userId);
+        onlineUsers = onlineUsers.filter(id => id !== String(userId));
         await connection.query(
-          "UPDATE users SET lastSeen = ? WHERE id = ?", 
+          "UPDATE users SET lastSeen = ? WHERE id = ?",
           [new Date(), userId]
         );
-        console.log(onlineUsers);
+        console.log("Onlined Users: ", onlineUsers);
         io.emit("status", onlineUsers);
       }
     } catch (error) {
@@ -105,35 +139,28 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("make-room", (msg) => {
-    console.log("Room request: ", msg);
-    const user1 = msg.user1.split("@")[0];
-    const user2 = msg.user2.split("@")[0];
-    const roomname = user1.length > user2.length 
-      ? user1 + user2 
-      : user2 + user1;
-    
-    socket.join(roomname);
-    io.emit("made-room", roomname);
-  });
+  // socket.on("make-room", (msg) => {
+  //   console.log("Room request: ", msg);
+  //   const user1 = msg.user1.split("@")[0];
+  //   const user2 = msg.user2.split("@")[0];
+  //   const roomname = user1.length > user2.length
+  //     ? user1 + user2
+  //     : user2 + user1;
 
-  socket.on("send-message", async (msg) => {
-    console.log("Message: ", msg);
+  //   socket.join(roomname);
+  //   io.emit("made-room", roomname);
+  // });
+
+  socket.on("send-message", async ({ message, to }) => {
+    // console.log("Message: ", message);
     let connection;
     try {
       connection = await pool.promise().getConnection();
-      await connection.query("USE chatdb");
-      
-      const [results] = await connection.query(
-        "SELECT socketId FROM users WHERE id = ?", 
-        [msg?.recipaent?.id]
-      );
-      
-      if (results.length > 0) {
-        const recipientSocketId = results[0].socketId;
-        io.to(recipientSocketId).emit("receive-message", msg);
-      } else {
-        console.log(`Recipient with id ${msg?.recipaent?.id} not found`);
+      await storeMessage(socket.userID, to?.id, message);
+
+      const recipientSocketId = userMap.get(String(to.id));
+      if (recipientSocketId) {
+        io.to(recipientSocketId).emit("receive-message", {message, to, from: socket.userID});
       }
     } catch (error) {
       console.error('Error in send-message handler:', error);
@@ -142,14 +169,14 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("status", (data) => {
-    console.log(data);
-    if (!onlineUsers.includes(data)) {
-      onlineUsers.push(data);
-    }
-    console.log(onlineUsers);
-    io.emit("status", onlineUsers);
-  });
+  // socket.on("status", (data) => {
+  //   console.log(data);
+  //   if (!onlineUsers.includes(data)) {
+  //     onlineUsers.push(data);
+  //   }
+  //   console.log(onlineUsers);
+  //   io.emit("status", onlineUsers);
+  // });
 });
 
 // Handling routes
